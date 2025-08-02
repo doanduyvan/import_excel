@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use App\Services\handleExcel\ImportExcel;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -14,5 +14,13 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    $service = new ImportExcel();
+    $content = $service->import();
+    return $content;
+});
+
+
+Route::get('/info', function(){
+$info = phpinfo();
+return $info;
 });
