@@ -17,10 +17,22 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $fillable = [
-        'name',
+   protected $fillable = [
+        'account_name',
         'email',
         'password',
+        'role',
+        'account_code',
+        'is_active',
+    ];
+
+   protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+        protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     /**

@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Services\handleExcel\ImportExcel;
+use App\Http\Controllers\DashboardController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -13,11 +13,7 @@ use App\Services\handleExcel\ImportExcel;
 |
 */
 
-Route::get('/', function () {
-    $service = new ImportExcel();
-    $content = $service->import();
-    return $content;
-});
+Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
 
 Route::get('/info', function(){
