@@ -9,30 +9,60 @@ use Exception;
 class ImportExcel
 {
 
-    public function excel_mapping_db(): array
+    public function excel_mapping_db($type): array | null
     {
-        return
-            [
-                "A" => "name",
-                "B" => "phone",
-                "C" => "email"
-            ];
+        if ($type === 'tender') {
+            return
+                [
+                    "A" => "customer_code",
+                    "B" => "customer_name",
+                    "E" => "area",
+                    "L" => "sap_item_code",
+                    "N" => "item_short_description",
+                    "P" => "customer_quota_description",
+                    "T" => "cust_quota_start_date",
+                    "U" => "cust_quota_end_date",
+                    "X" => "cust_quota_quantity",
+                    "Y" => "invoice_quantity",
+                    "Z" => "return_quantity",
+                    "AA" => "allocated_quantity",
+                    "AB" => "used_quota",
+                    "AC" => "remaining_quota",
+                    "AD" => "report_run_date",
+                    "W" => "tender_price",
+                ];
+        }
+
+        if ($type === 'sales') {
+            return
+                [
+                    "A" => "customer_code",
+                    "C" => "customer_name",
+                    "F" => "area",
+                    "M" => "sap_item_code",
+                    "O" => "item_short_description",
+                    "H" => "order_number",
+                    "I" => "invoice_number",
+                    "J" => "contract_number",
+                    "T" => "expiry_date",
+                    "X" => "selling_price",
+                    "Y" => "commercial_quantity",
+                    "AB" => "invoice_confirmed_date",
+                    "AA" => "net_sales_value",
+                    "AC" => "accounts_receivable_date",
+                ];
+        }
+        return null;
     }
 
-    public function import(): array|bool
+    public function import($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
     {
-
-        $pathtest = storage_path('app/excel/temp.xlsx'); // temp check
-        $path = $pathtest;
-        $sheetIndex = 0; // chọn sheet cần lấy theo index
 
         try {
             if (!file_exists($path)) {
-                Log::error("File Excel không tồn tại: $path");
-                return false;
+                throw new Exception("File not found: " . $path);
             }
 
-            $mapping = $this->excel_mapping_db();
             $spreadsheet = IOFactory::load($path);
             $sheet = $spreadsheet->getSheet($sheetIndex);
             $rows = $sheet->toArray(null, false, true, true); // A, B, C...
@@ -40,7 +70,7 @@ class ImportExcel
             $data = [];
 
             foreach ($rows as $index => $row) {
-                if ($index === 1) continue; // Bỏ dòng tiêu đề && index trong $rows bắt đầu từ 1
+                if ($index < $startRow) continue; // Bỏ dòng tiêu đề && index trong $rows bắt đầu từ 1
 
                 $record = [];
 

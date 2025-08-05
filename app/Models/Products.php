@@ -12,7 +12,7 @@ class Products extends Model
 {
     use HasFactory;
     protected $table = 'products';
-    protected $fillabe = [
+    protected $fillable = [
         'sap_item_code',
         'item_short_description'
     ];
