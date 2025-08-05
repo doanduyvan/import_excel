@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use App\Models\Tender;
+use App\Models\Sales;
+use App\Models\User;
+
+class Customers extends Model
+{
+    use HasFactory;
+    protected $table = 'customers';
+    protected $fillable = [
+        'customer_code',
+        'customer_name',
+        'area',
+        'user_id'
+    ];
+
+    public function tender()
+    {
+        return $this->hasMany(Tender::class, 'customer_id', 'id');
+    }
+
+    public function sales()
+    {
+        return $this->hasMany(Sales::class, 'customer_id', 'id');
+    }
+
+    public function users()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+}

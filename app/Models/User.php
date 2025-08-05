@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Customers;
+use App\Models\Target;
 
 class User extends Authenticatable
 {
@@ -17,7 +19,7 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-   protected $fillable = [
+    protected $fillable = [
         'account_name',
         'email',
         'password',
@@ -26,12 +28,21 @@ class User extends Authenticatable
         'is_active',
     ];
 
-   protected $hidden = [
+    protected $hidden = [
         'password',
     ];
 
-        protected $casts = [
+    protected $casts = [
         'is_active' => 'boolean',
     ];
 
+    public function customers()
+    {
+        return $this->hasMany(Customers::class, 'user_id', 'id');
+    }
+
+    public function target()
+    {
+        return $this->hasMany(Target::class, 'user_id', 'id');
+    }
 }

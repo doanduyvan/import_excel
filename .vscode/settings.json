@@ -1,0 +1,10 @@
+{
+    "[php]": {
+        "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
+        "editor.formatOnSave": true
+    },
+    "intelephense.files.maxSize": 1000000,
+    "intelephense.telemetry.enabled": false,
+    "php.validate.executablePath": "C:/xampp/php/php.exe", // tùy vào máy
+    "intelephense.environment.includePaths": ["vendor"]
+}
