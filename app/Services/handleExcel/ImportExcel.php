@@ -90,4 +90,48 @@ class ImportExcel
             return false;
         }
     }
+
+    // app/services/handleExcel/ImportExcel.php
+    public function receiveMail($days = 10)
+    {
+        $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
+        $username = env("MAIL_USERNAME");
+        $password = env('MAIL_PASSWORD');
+
+        try {
+            $inbox = imap_open($hostname, $username, $password);
+            if (!$inbox) {
+                throw new Exception('Không thể kết nối đến Gmail: ' . imap_last_error());
+            }
+
+            // Tính ngày bắt đầu (vd: 10 ngày trước)
+            $sinceDate = now()->subDays($days)->format('d-M-Y'); // IMAP yêu cầu định dạng: 06-Aug-2025
+            $searchCriteria = 'SINCE "' . $sinceDate . '"';
+
+            // Lấy email theo ngày
+            $emails = imap_search($inbox, $searchCriteria);
+
+            if (!$emails) {
+                echo "📭 Không có email trong $days ngày gần đây.\n";
+                imap_close($inbox);
+                return;
+            }
+
+            foreach ($emails as $email_number) {
+                $overview = imap_fetch_overview($inbox, $email_number, 0);
+                $body = imap_fetchbody($inbox, $email_number, 1, FT_PEEK);
+
+                echo "---------------------------\n";
+                echo "📧 Tiêu đề: " . ($overview[0]->subject ?? '[Không tiêu đề]') . "\n";
+                echo "👤 Từ: " . ($overview[0]->from ?? '[Không xác định]') . "\n";
+                echo "🕒 Ngày: " . ($overview[0]->date ?? '[Không có ngày]') . "\n";
+                echo "📝 Nội dung:\n" . substr($body, 0, 500) . "\n";
+                echo "---------------------------\n\n";
+            }
+
+            imap_close($inbox);
+        } catch (Exception $e) {
+            echo "❌ Lỗi: " . $e->getMessage();
+        }
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use App\Services\handleExcel\ImportExcel;
 
 class handleExcelCommand extends Command
 {
@@ -26,8 +27,7 @@ class handleExcelCommand extends Command
     public function handle()
     {
         //
-        $this->info('Bắt đầu import dữ liệu...');
-
-        $this->info('Import hoàn tất!');
+        $importexcel = new ImportExcel();
+        $importexcel->receiveMail();
     }
 }
