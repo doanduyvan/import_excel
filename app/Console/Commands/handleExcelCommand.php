@@ -28,6 +28,6 @@ class handleExcelCommand extends Command
     {
         //
         $importexcel = new ImportExcel();
-        $importexcel->receiveMail();
+        $importexcel->handleAll();
     }
 }

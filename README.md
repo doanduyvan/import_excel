@@ -92,3 +92,49 @@ dữ liệu được thêm mới có dạng
 'tên cột' => dữ liệu,
 ]
 ]
+
+
+phương thức handleAll(){
+   gọi sử lí ở đây. cái này tôi tự làm được
+}
+dùng để gọi tất các các phương thức khác để sử lí
+
+receiveMail(){
+    mở kết nối mail
+    lọc các email chưa đọc tronng 10 ngày gần nhất
+    lọc các email có tiêu đều chứa nội dung trong mảng, mảng này có thể tùy chỉnh ['sales' => 'dailynetSales', 'tender' => 'tenderstatus]
+    lọc tiếp trong các mail đó để lấy ra file .zip có thể 1 file hoặc nhiều file .zip trong 1 mail
+    sau đó trả về 1 mảng chứa các email_number và mảng file .zip
+    không đánh dấu là đã đọc
+    đóng kết nối mail
+}
+
+handleFileZip(nhận mảng file .zip từ receiveMail){
+    giải nén file .zip và lấy ra file excel trong đó, trong đó có thể chứa 1 hay nhiều file excel
+    lưu file excel vào bộ nhớ tạm để sử lí, không cần lưu vào host.
+    trả về 1 mảng chứa đường dẫn file excel tại bộ nhớ tạm
+}
+
+handleExcel(nhận đường dẫn trong file excel){
+    đọc file excel và trả về mảng dữ liệu đúng với cấu trúc db
+}
+
+handleInsertDB(nhận mảng dữ liệu từ handleExcel){
+    thực hiện ghi vào db
+}
+
+handleStatusMail(mảng chứa các email_number đã sủ lí thành công){
+    mở kết nối email
+    chuyển trạng thái
+    đóng kết nối
+}
+
+tại mỗi phương thức trả về sẽ có cấu trúc
+
+         return [
+                    'status' => '200', // trạng thái thành công
+                    'is_next' => false,  // có tiếp tục chạy tiếp hay không
+                    'is_err' => false, // có phải lỗi hay không
+                    'message' => "Không có email trong $days ngày gần đây.",
+                    'data' => null
+                ];
