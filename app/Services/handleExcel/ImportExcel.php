@@ -104,7 +104,7 @@ class ImportExcel
                 throw new Exception('Không thể kết nối đến Gmail: ' . imap_last_error());
             }
 
-            // Tính ngày bắt đầu (vd: 10 ngày trước)
+            // Tính ngày bắt đầu
             $sinceDate = now()->subDays($days)->format('d-M-Y'); // IMAP yêu cầu định dạng: 06-Aug-2025
             $searchCriteria = 'SINCE "' . $sinceDate . '"';
 
@@ -118,6 +118,32 @@ class ImportExcel
             }
 
             foreach ($emails as $email_number) {
+                $structure = imap_fetchstructure($inbox, $email_number);
+                $hasZip = false;
+
+                if (isset($structure->parts)) {
+                    for ($i = 0; $i < count($structure->parts); $i++) {
+                        $part = $structure->parts[$i];
+
+                        // Kiểm tra nếu là file đính kèm có tên và là file zip
+                        if (
+                            isset($part->disposition) &&
+                            strtolower($part->disposition) === 'attachment' &&
+                            isset($part->dparameters[0]->value)
+                        ) {
+                            $filename = $part->dparameters[0]->value;
+                            if (str_ends_with(strtolower($filename), '.zip')) {
+                                $hasZip = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Nếu không có file zip, bỏ qua email này
+                if (!$hasZip) {
+                    continue;
+                }
+
                 $overview = imap_fetch_overview($inbox, $email_number, 0);
                 $body = imap_fetchbody($inbox, $email_number, 1, FT_PEEK);
 
