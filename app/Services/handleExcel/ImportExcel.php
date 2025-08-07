@@ -61,8 +61,8 @@ class ImportExcel
 
     public function handleAll()
     {
-        ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
-        ini_set('max_execution_time', 100); // ✅ không giới hạn thời gian
+        // ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
+        ini_set('max_execution_time', 60); // 60s
         $emails = $this->receiveMail(5); // Lấy email trong 5 ngày gần đây
         dd($emails);
     }
@@ -115,6 +115,12 @@ class ImportExcel
         $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
         $username = env("MAIL_USERNAME");
         $password = env('MAIL_PASSWORD');
+        $pathZip = 'app/tmp_zips';
+
+        $hasFolderZip = storage_path($pathZip);
+        if (is_dir($hasFolderZip)) {
+            $this->deleteFolder($hasFolderZip);
+        }
 
         try {
             $inbox = imap_open($hostname, $username, $password);
@@ -203,11 +209,11 @@ class ImportExcel
                                 default => $content,
                             };
 
-                            $dir = storage_path('app/tmp_zips');
+                            $dir = storage_path($pathZip);
                             if (!is_dir($dir)) {
                                 mkdir($dir, 0777, true); // tạo thư mục nếu chưa tồn tại
                             }
-                            $storedPath = storage_path('app/tmp_zips/' . time() . '_' . $filename); // lấy đường dẫn lưu file zip
+                            $storedPath = storage_path($pathZip . '/' . $filename); // lấy đường dẫn lưu file zip
                             if (file_exists($storedPath)) {
                                 unlink($storedPath); // xóa file cũ nếu đã tồn tại
                             }
@@ -294,5 +300,23 @@ class ImportExcel
         }
 
         return $excelFiles; // Mỗi phần tử là đường dẫn đến file Excel tại thư mục tạm
+    }
+
+    function deleteFolder($folderPath)
+    {
+        if (!is_dir($folderPath)) return false;
+
+        foreach (scandir($folderPath) as $item) {
+            if ($item === '.' || $item === '..') continue;
+
+            $path = $folderPath . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($path)) {
+                $this->deleteFolder($path); // Xóa thư mục con
+            } else {
+                unlink($path); // Xóa file
+            }
+        }
+
+        return rmdir($folderPath); // Xóa thư mục rỗng sau khi dọn hết
     }
 }
