@@ -8,9 +8,18 @@ use Exception;
 use Illuminate\Support\Str;
 use ZipArchive;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
+use OpenSpout\Common\Exception\IOException;
+use OpenSpout\Reader\ReaderFactory;
+
+use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
+use Box\Spout\Common\Type;
+use Box\Spout\Reader\ReaderInterface;
+
 
 class ImportExcel
 {
+
+    public $errs = []; // mảng lưu các lỗi trong quá trình xử lý
 
     public function excel_mapping_db($type): array | null
     {
@@ -62,7 +71,7 @@ class ImportExcel
     public function handleAll()
     {
         // ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
-        ini_set('max_execution_time', 60); // 60s
+        ini_set('max_execution_time', 120); // 120s
 
         // Lấy email trong 5 ngày gần đây, trả về các email có file Zip đúng cấu trúc
         $emails = $this->receiveMail(5);
@@ -80,11 +89,169 @@ class ImportExcel
             }
             $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
         }
-        // sử lí đọc file excel
-        print_r($emails);
+        // sử lí đọc file excel và lưu vào db
+
+        foreach ($emails['data'] as $key => $email) {
+            $type = $email['type'];
+            $mapping = $this->excel_mapping_db($type);
+            if (!$mapping) {
+                $this->errs[] = "Không tìm thấy mapping cho loại email: $type";
+                continue;
+            }
+
+            // đọc file excel và lưu vào db
+            $pathExcel = $email['pathExcel'];
+            if (!file_exists($pathExcel)) {
+                $this->errs[] = "File Excel không tồn tại: $pathExcel";
+                continue;
+            }
+
+            // import dữ liệu từ file excel
+            $result = $this->importLargeExcel($pathExcel, $type, $mapping, 1000);
+            if (!$result['is_next']) {
+                // $this->errs[] = "Lỗi khi import dữ liệu từ file Excel: " . $result['message'];
+                continue;
+            }
+        }
+
+        Log::info("Xử lý hoàn tất. Tổng số lỗi: " . count($this->errs));
+        Log::info("Danh sách lỗi: " . json_encode($this->errs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        // print_r($emails);
     }
 
-    public function import($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
+    public function importLargeExcel($path, $type, $mapping = [], $batchSize = 1000): array
+    {
+        try {
+            if (!file_exists($path)) {
+                throw new Exception("File not found: $path");
+            }
+
+            // Tự động chọn reader phù hợp theo đuôi file
+            $reader = $this->createSpoutReader($path);
+            $reader->open($path);
+
+            $dataBatch = [];
+
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $cells = $row->getCells();
+                    $rowData = [];
+
+                    foreach ($cells as $index => $cell) {
+                        if (isset($mapping[$index])) {
+                            $value = $cell->getValue();
+
+                            // Nếu là DateTime thì format lại
+                            if ($value instanceof \DateTimeInterface) {
+                                $value = $value->format('Y-m-d');
+                            }
+
+                            $rowData[$mapping[$index]] = is_string($value) ? trim($value) : $value;
+                        }
+                    }
+
+                    // Bỏ dòng rỗng
+                    if (!array_filter($rowData)) continue;
+
+                    $dataBatch[] = $rowData;
+
+                    if (count($dataBatch) === $batchSize) {
+                        $this->handleBatch($type, $dataBatch);
+                        $dataBatch = [];
+                    }
+                }
+            }
+
+            // Xử lý batch cuối
+            if (!empty($dataBatch)) {
+                $this->handleBatch($type, $dataBatch);
+            }
+
+            $reader->close();
+            return $this->returnResult(200, true, false, "Thành Công");
+        } catch (Exception $e) {
+            $this->errs[] = 'Lỗi import Excel: ' . $e->getMessage();
+            return $this->returnResult(500, false, true, '');
+        }
+    }
+
+    protected function createSpoutReader($path): ReaderInterface
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        if ($extension === 'xlsx') {
+            return ReaderEntityFactory::createXLSXReader();
+        } elseif ($extension === 'xls') {
+            return ReaderEntityFactory::createXLSReader();
+        } elseif ($extension === 'csv') {
+            return ReaderEntityFactory::createCSVReader();
+        } else {
+            throw new Exception("Unsupported file extension: .$extension");
+        }
+    }
+
+
+    public function import($mapping, $path, $type, $startRow = 1, $sheetIndex = 0, $batchSize = 1000): array
+    {
+        try {
+            if (!file_exists($path)) {
+                throw new Exception("File not found: " . $path);
+            }
+
+            $reader = IOFactory::createReaderForFile($path);
+            $reader->setReadDataOnly(true); // chỉ đọc dữ liệu, bỏ định dạng
+            $spreadsheet = $reader->load($path);
+            $worksheet = $spreadsheet->getSheet($sheetIndex);
+
+            $rowIterator = $worksheet->getRowIterator();
+            $dataBatch = [];
+            // $result = [];
+
+            foreach ($rowIterator as $rowIndex => $row) {
+                if ($rowIndex < $startRow) continue;
+
+                $rowData = [];
+
+                foreach ($row->getCellIterator() as $cell) {
+                    $column = $cell->getColumn();
+                    if (isset($mapping[$column])) {
+                        $rowData[$mapping[$column]] = trim($cell->getValue());
+                    }
+                }
+
+                // Bỏ dòng rỗng
+                if (!array_filter($rowData)) continue;
+
+                $dataBatch[] = $rowData;
+
+                if (count($dataBatch) === $batchSize) {
+                    // Xử lý 1 batch 1000 dòng
+                    $this->handleBatch($type, $dataBatch);
+                    $dataBatch = []; // reset batch
+                }
+            }
+
+            // Xử lý phần còn lại < 1000 dòng
+            if (!empty($dataBatch)) {
+                $this->handleBatch($type, $dataBatch);
+            }
+
+            return $this->returnResult(200, true, false, "Thành Công");
+        } catch (Exception $e) {
+            $this->errs[] = 'Lỗi import Excel: ' . $e->getMessage();
+            return $this->returnResult(500, false, true, '');
+        }
+    }
+
+    public function handleBatch($type, $dataBatch)
+    {
+        Log::info("Xử lý batch $type với " . count($dataBatch) . " dòng dữ liệu");
+        // Log::info("Dữ liệu: " . json_encode($dataBatch, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        Log::info("Dữ liệu: " . json_encode($dataBatch));
+    }
+
+
+    public function import_no($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
     {
 
         try {
@@ -192,7 +359,7 @@ class ImportExcel
                 // kiểm tra xem email có chứa file đính kèm là ZIP không
                 $structure = imap_fetchstructure($inbox, $email_number);
                 if (!isset($structure->parts)) {
-                    $messageEmptyEmail += " - [Mail: $subject => Không tìm thấy file Zip] ";
+                    $messageEmptyEmail .= " - [Mail: $subject => Không tìm thấy file Zip] ";
                     continue;
                 }
                 $zipFiles = [];
@@ -248,7 +415,7 @@ class ImportExcel
                 }
                 if (!empty($zipFiles)) {
                     if (count($zipFiles) > 1) {
-                        $messageEmptyEmail += " - [Email: $subject => Chỉ nhận mail có 1 file Zip]";
+                        $messageEmptyEmail .= " - [Email: $subject => Chỉ nhận mail có 1 file Zip]";
                         continue;
                     }
                     $emailsResult[] = [
@@ -265,11 +432,14 @@ class ImportExcel
             // Nếu không có email nào phù hợp, trả về thông báo
             imap_close($inbox);
             if (empty($emailsResult)) {
-                return $this->returnResult(404, false, $messageEmptyEmail === '' ? false : true, 'Không có email nào phù hợp. ' . $messageEmptyEmail);
+                $er = 'Không có email nào phù hợp. ' . $messageEmptyEmail;
+                $this->errs[] = $er;
+                return $this->returnResult(404, false, $messageEmptyEmail === '' ? false : true, $er);
             }
 
             return $this->returnResult(200, true, false, 'Thành công', $emailsResult);
         } catch (Exception $e) {
+            $this->errs[] = 'Lỗi khi nhận email: ' . $e->getMessage();
             return $this->returnResult(500, false, true, $e->getMessage());
         }
     }
@@ -327,6 +497,7 @@ class ImportExcel
                 throw new Exception('Không giải nén file Zip');
             }
         } catch (Exception $err) {
+            $this->errs[] = 'Lỗi khi giải nén file Zip: ' . $err->getMessage();
             return $this->returnResult(500, false, true, $err->getMessage());
         } finally {
             if (file_exists($zipFiles['path'])) {
@@ -362,5 +533,17 @@ class ImportExcel
             'message' => $message,
             'data' => $data
         ];
+    }
+
+    public function cleanFolder()
+    {
+        $folders = [
+            storage_path('app/tmp_zips'),
+            storage_path('app/tmp_excels'),
+        ];
+
+        foreach ($folders as $folder) {
+            $this->deleteFolder($folder);
+        }
     }
 }
