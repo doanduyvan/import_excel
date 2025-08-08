@@ -64,7 +64,8 @@ class ImportExcel
         // ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
         ini_set('max_execution_time', 60); // 60s
         $emails = $this->receiveMail(5); // Lấy email trong 5 ngày gần đây
-        dd($emails);
+        // dd($emails);
+
     }
 
     public function import($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
@@ -230,13 +231,17 @@ class ImportExcel
                     }
                 }
                 if (!empty($zipFiles)) {
+                    if (count($zipFiles) > 1) {
+                        $messageEmptyEmail += " - [Email: $subject => Chỉ nhận mail có 1 file Zip]";
+                        continue;
+                    }
                     $emailsResult[] = [
                         'email_number' => $email_number,
                         'subject' => $subject,
                         'from' => $overview->from ?? '',
                         'date' => $overview->date ?? '',
                         'type' => $type,
-                        'zips' => $zipFiles
+                        'zips' => $zipFiles[0]
                     ];
                 }
             }
