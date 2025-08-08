@@ -154,12 +154,12 @@ class ImportExcel
             }
 
             $emailsResult = []; // mảng lưu các mail phù hợp với điều kiện, trong đó mỗi phần tử là một mảng với các thông tin như tiêu đề, người gửi, ngày gửi, và một mảng file .zip)
+            $messageEmptyEmail = '';
             foreach ($emails as $email_number) {
                 $overview = imap_fetch_overview($inbox, $email_number, 0)[0];
                 $subject = $overview->subject ?? '';
                 $subjectLower = strtolower($subject);
                 // $body = imap_fetchbody($inbox, $email_number, 1, FT_PEEK);
-
 
                 // kiểm tra tiêu đề email có chứa từ khóa cần tìm
                 $type = null;
@@ -174,7 +174,10 @@ class ImportExcel
 
                 // kiểm tra xem email có chứa file đính kèm là ZIP không
                 $structure = imap_fetchstructure($inbox, $email_number);
-                if (!isset($structure->parts)) continue;
+                if (!isset($structure->parts)) {
+                    $messageEmptyEmail += " - [Mail: $subject => Không tìm thấy file Zip] ";
+                    continue;
+                }
                 $zipFiles = [];
                 foreach ($structure->parts as $i => $part) {
                     if (
@@ -241,32 +244,16 @@ class ImportExcel
             // Nếu không có email nào phù hợp, trả về thông báo
             imap_close($inbox);
             if (empty($emailsResult)) {
-                return [
-                    'status' => '404',
-                    'is_next' => false,
-                    'is_err' => false,
-                    'message' => "Không có email nào phù hợp.",
-                    'data' => null
-                ];
+                return $this->returnResult(404, false, $messageEmptyEmail === '' ? false : true, 'Không có email nào phù hợp. ' . $messageEmptyEmail);
             }
 
-            return [
-                'status' => '200',
-                'is_next' => true,
-                'is_err' => false,
-                'message' => "Thành công.",
-                'data' => $emailsResult
-            ];
+            return $this->returnResult(200, true, false, 'Thành công', $emailsResult);
         } catch (Exception $e) {
-            return [
-                'status' => '500', // trạng thái thành công
-                'is_next' => false,  // có tiếp tục chạy tiếp hay không
-                'is_err' => true, // có phải lỗi hay không
-                'message' => $e->getMessage(),
-                'data' => null
-            ];
+            return $this->returnResult(500, false, true, $e->getMessage());
         }
     }
+
+
 
     public function handleFileZip(array $zipFiles)
     {
@@ -318,5 +305,16 @@ class ImportExcel
         }
 
         return rmdir($folderPath); // Xóa thư mục rỗng sau khi dọn hết
+    }
+
+    public function returnResult($status, $is_next, $is_errr, $message, $data = null)
+    {
+        return [
+            'status' => $status, // trạng thái thành công
+            'is_next' => $is_next,  // có tiếp tục chạy tiếp hay không
+            'is_err' => $is_errr, // có phải lỗi hay không
+            'message' => $message,
+            'data' => $data
+        ];
     }
 }
