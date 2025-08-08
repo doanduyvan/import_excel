@@ -63,9 +63,25 @@ class ImportExcel
     {
         // ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
         ini_set('max_execution_time', 60); // 60s
-        $emails = $this->receiveMail(5); // Lấy email trong 5 ngày gần đây
-        // dd($emails);
 
+        // Lấy email trong 5 ngày gần đây, trả về các email có file Zip đúng cấu trúc
+        $emails = $this->receiveMail(5);
+        if (!$emails['is_next']) {
+            echo ($emails['message']);
+            return;
+        }
+        // giải nén và lấy path excel
+        foreach ($emails['data'] as $key => $email) {
+            $handlExtractZip = $this->handleFileZip($email['zips']);
+            if (!$handlExtractZip['is_next']) {
+                // lỗi giải nén của từng mail sẽ sử lí ở đây
+                // echo $handlExtractZip['message'];
+                continue;
+            }
+            $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
+        }
+        // sử lí đọc file excel
+        print_r($emails);
     }
 
     public function import($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
@@ -260,38 +276,63 @@ class ImportExcel
 
 
 
-    public function handleFileZip(array $zipFiles)
+    public function handleFileZip(array $zipFiles): array
     {
-        $excelFiles = [];
 
-        foreach ($zipFiles as $file) {
-            // 1. Tạo file tạm từ nội dung ZIP
-            $tmpZipPath = tempnam(sys_get_temp_dir(), 'zip_') . '.zip';
-            file_put_contents($tmpZipPath, $file['content']); // 'content' là chuỗi base64 hoặc raw
+        // cấu trúc dữ liệu đầu vào
+        //        "zips" => array:2 [
+        //     "filename" => "5001580 R000772VN TenderQuotaStatus.zip"
+        //     "path" => "C:\xampp\htdocs\temp2\temp2\storage\app/tmp_zips/5001580 R000772VN TenderQuotaStatus.zip"
+        //   ]
 
-            // 2. Giải nén vào thư mục tạm
-            $extractPath = sys_get_temp_dir() . '/' . Str::random(10); // thư mục con tránh trùng
-            mkdir($extractPath);
-
-            $zip = new ZipArchive();
-            if ($zip->open($tmpZipPath) === true) {
-                $zip->extractTo($extractPath);
-                $zip->close();
-
-                // 3. Duyệt thư mục vừa giải nén để tìm file Excel
-                $files = scandir($extractPath);
-                foreach ($files as $f) {
-                    if (in_array(pathinfo($f, PATHINFO_EXTENSION), ['xls', 'xlsx'])) {
-                        $excelFiles[] = $extractPath . '/' . $f;
-                    }
-                }
-            }
-
-            // 4. Xóa file zip tạm
-            unlink($tmpZipPath);
+        $filenameWithoutExt = pathinfo($zipFiles['filename'], PATHINFO_FILENAME);
+        $pathFolderExcel = storage_path('app/tmp_excels/' . $filenameWithoutExt);
+        // đã tồn tại thì xóa
+        if (is_dir($pathFolderExcel)) {
+            $this->deleteFolder($pathFolderExcel);
         }
 
-        return $excelFiles; // Mỗi phần tử là đường dẫn đến file Excel tại thư mục tạm
+        // tạo mới thư mục 
+
+        if (!mkdir($pathFolderExcel, 0777, true) && !is_dir($pathFolderExcel)) {
+            throw new Exception("Không thể tạo thư mục: " . $pathFolderExcel);
+        }
+
+        try {
+            $zip = new ZipArchive;
+            if ($zip->open($zipFiles['path']) === TRUE) {
+                $zip->extractTo($pathFolderExcel);
+                $zip->close();
+                // 3. Duyệt thư mục vừa giải nén để tìm file Excel
+                $files = scandir($pathFolderExcel);
+                if ($files === false) {
+                    throw new Exception("Không thể đọc nội dung thư mục: $pathFolderExcel");
+                }
+                $excelFiles = [];
+                foreach ($files as $f) {
+                    $extension = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+                    if (in_array($extension, ['xls', 'xlsx'])) {
+                        $excelFiles[] = $pathFolderExcel . '/' . $f;
+                    }
+                }
+                if (empty($excelFiles)) {
+                    throw new Exception("Không tìm thấy file Excel trong file Zip [" . $zipFiles['filename'] . "]");
+                }
+                if (count($excelFiles) > 1) {
+                    throw new Exception("Chỉ hỗ trợ 1 file Excel trong file Zip [" . $zipFiles['filename'] . "]");
+                }
+
+                return $this->returnResult(200, true, false, 'Thành công', $excelFiles[0]);
+            } else {
+                throw new Exception('Không giải nén file Zip');
+            }
+        } catch (Exception $err) {
+            return $this->returnResult(500, false, true, $err->getMessage());
+        } finally {
+            if (file_exists($zipFiles['path'])) {
+                unlink($zipFiles['path']);
+            }
+        }
     }
 
     function deleteFolder($folderPath)
