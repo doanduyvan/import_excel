@@ -2,18 +2,10 @@
 
 namespace App\Services\handleExcel;
 
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Log;
 use Exception;
-use Illuminate\Support\Str;
 use ZipArchive;
-use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
-use OpenSpout\Common\Exception\IOException;
-use OpenSpout\Reader\ReaderFactory;
 
-use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
-use Box\Spout\Common\Type;
-use Box\Spout\Reader\ReaderInterface;
 
 
 class ImportExcel
@@ -67,37 +59,73 @@ class ImportExcel
         return null;
     }
 
+    public function FakeEmails()
+    {
+
+        return [
+            "status" => 200,
+            "is_next" => true,
+            "is_err" => false,
+            "message" => "Thành công",
+            "data" => [
+                [
+                    "email_number" => 572,
+                    "subject" => "Fw: 5001580 R001195VN  DailyNetSalesData_NW",
+                    "from" => "Quang Doan <ds.duyquang@hotmail.com>",
+                    "date" => "Wed, 6 Aug 2025 10:04:32 +0000",
+                    "type" => "sales",
+                    "zips" => [
+                        "filename" => "5001580 R001195VN  DailyNetSalesData_NW.zip",
+                        "path" => "C:\duyvan\projects\import_excel\storage\app/tmp_zips/5001580 R001195VN  DailyNetSalesData_NW.zip"
+                    ],
+                    "pathExcel" => "C:\duyvan\projects\import_excel\storage\app/tmp_excels/5001580 R001195VN  DailyNetSalesData_NW/R001195VN_5001580_2025-01-17-04-30-41_DailyNetSalesData_NW.xlsx"
+                ],
+                [
+                    "email_number" => 573,
+                    "subject" => "Fw: 5001580 R000772VN TenderQuotaStatus",
+                    "from" => "Quang Doan <ds.duyquang@hotmail.com>",
+                    "date" => "Wed, 6 Aug 2025 10:04:50 +0000",
+                    "type" => "tender",
+                    "zips" => [
+                        "filename" => "5001580 R000772VN TenderQuotaStatus.zip",
+                        "path" => "C:\duyvan\projects\import_excel\storage\app/tmp_zips/5001580 R000772VN TenderQuotaStatus.zip"
+                    ],
+                    "pathExcel" => "C:\duyvan\projects\import_excel\storage\app/tmp_excels/5001580 R000772VN TenderQuotaStatus/R000772VN_0005001580_2025-07-29-03-33-14_TenderQuotaStatus.XLS"
+                ],
+
+            ],
+        ];
+    }
+
 
     public function handleAll()
     {
-        // ini_set('memory_limit', '1024M'); // tăng giới hạn bộ nhớ
-        ini_set('max_execution_time', 120); // 120s
+        ini_set('memory_limit', '512M'); // tăng giới hạn bộ nhớ
+        ini_set('max_execution_time', 0); // không giới hạn thời gian
 
         // Lấy email trong 5 ngày gần đây, trả về các email có file Zip đúng cấu trúc
-        $emails = $this->receiveMail(5);
-        if (!$emails['is_next']) {
-            echo ($emails['message']);
-            return;
-        }
-        // giải nén và lấy path excel
-        foreach ($emails['data'] as $key => $email) {
-            $handlExtractZip = $this->handleFileZip($email['zips']);
-            if (!$handlExtractZip['is_next']) {
-                // lỗi giải nén của từng mail sẽ sử lí ở đây
-                // echo $handlExtractZip['message'];
-                continue;
+        if (false) {
+            $emails = $this->receiveMail(5);
+            if (!$emails['is_next']) {
+                echo ($emails['message']);
+                return;
             }
-            $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
+            // giải nén và lấy path excel
+            foreach ($emails['data'] as $key => $email) {
+                $handlExtractZip = $this->handleFileZip($email['zips']);
+                if (!$handlExtractZip['is_next']) {
+                    // lỗi giải nén của từng mail sẽ sử lí ở đây
+                    // echo $handlExtractZip['message'];
+                    continue;
+                }
+                $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
+            }
         }
         // sử lí đọc file excel và lưu vào db
+        $emails = $this->FakeEmails(); // tạm thời dùng dữ liệu giả để test
 
         foreach ($emails['data'] as $key => $email) {
             $type = $email['type'];
-            $mapping = $this->excel_mapping_db($type);
-            if (!$mapping) {
-                $this->errs[] = "Không tìm thấy mapping cho loại email: $type";
-                continue;
-            }
 
             // đọc file excel và lưu vào db
             $pathExcel = $email['pathExcel'];
@@ -107,10 +135,10 @@ class ImportExcel
             }
 
             // import dữ liệu từ file excel
-            $result = $this->importLargeExcel($pathExcel, $type, $mapping, 1000);
-            if (!$result['is_next']) {
-                // $this->errs[] = "Lỗi khi import dữ liệu từ file Excel: " . $result['message'];
-                continue;
+            $result = $this->handleExcel($pathExcel, $type);
+            if (isset($result['is_err']) && $result['is_err']) {
+                // nếu có lỗi trong quá trình import thì lưu lại
+                $this->errs[] = "Lỗi khi import file Excel: " . $result['message'];
             }
         }
 
@@ -119,175 +147,461 @@ class ImportExcel
         // print_r($emails);
     }
 
-    public function importLargeExcel($path, $type, $mapping = [], $batchSize = 1000): array
+    public function handleExcel($path, $type)
     {
+
+        $fmt = $this->detectExcelFormat($path);
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return match ($fmt) {
+            'xlsx_zip' => $this->importLargeExcel_xlsx($path, $type),
+            'xls_ole'  => $this->importLargeExcel_xls($path, $type),
+            'csv'      => $this->importLargeExcel_csv($path, $type),
+            default    => $this->returnResult(415, false, true, "Định dạng không hỗ trợ hoặc file hỏng: $fmt"),
+        };
+    }
+
+    /**
+     * Đọc .xlsx theo batch bằng Spout, chỉ xử lý 1 sheet duy nhất.
+     *
+     * @param string $path       Đường dẫn file .xlsx
+     * @param string $type       Loại dữ liệu (để truyền cho handleBatch)
+     * @param int    $batchSize  Số dòng mỗi batch (mặc định 1000)
+     * @param int    $startRow   Dòng bắt đầu đọc (1-based). Nếu có header, truyền 2
+     * @param int    $sheetIndex Index sheet cần đọc (0-based)
+     */
+    public function importLargeExcel_xlsx(
+        string $path,
+        string $type,
+        int $batchSize = 1000,
+        int $startRow = 1,
+        int $sheetIndex = 0
+    ): array {
+        // Lấy mapping theo type (key là cột chữ: "A" => "field")
+        $mapping = $this->excel_mapping_db($type);
+
         try {
             if (!file_exists($path)) {
-                throw new Exception("File not found: $path");
+                throw new \Exception("File not found: $path");
+            }
+            // $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            // if ($ext !== 'xlsx') {
+            //     throw new \Exception("importLargeExcel_xlsx() chỉ hỗ trợ .xlsx, đã nhận .$ext");
+            // }
+
+            // Chuẩn hoá mapping "A"=>"field" -> [0=>"field", 1=>"field", ...]
+            $mapIdxToField = [];
+            foreach ($mapping as $colLetter => $field) {
+                $idx = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($colLetter) - 1; // 0-based
+                $mapIdxToField[$idx] = $field;
             }
 
-            // Tự động chọn reader phù hợp theo đuôi file
-            $reader = $this->createSpoutReader($path);
+            // Tạo Spout reader (streaming, ít RAM)
+            $reader = \Box\Spout\Reader\Common\Creator\ReaderEntityFactory::createXLSXReader();
+
+            if (method_exists($reader, 'setShouldFormatDates')) {
+                $reader->setShouldFormatDates(true); // Trả DateTime cho ô ngày
+            }
+            if (method_exists($reader, 'setShouldPreserveEmptyRows')) {
+                $reader->setShouldPreserveEmptyRows(true); // Giữ dòng trống nếu có
+            }
+
             $reader->open($path);
 
             $dataBatch = [];
+            $rowNumber = 0;
+            $currentSheetIndex = 0;
 
             foreach ($reader->getSheetIterator() as $sheet) {
-                foreach ($sheet->getRowIterator() as $row) {
-                    $cells = $row->getCells();
-                    $rowData = [];
+                if ($currentSheetIndex === $sheetIndex) {
+                    // Đúng sheet cần đọc → xử lý
+                    foreach ($sheet->getRowIterator() as $row) {
+                        $rowNumber++;
+                        if ($rowNumber < $startRow) {
+                            continue; // Bỏ qua header
+                        }
 
-                    foreach ($cells as $index => $cell) {
-                        if (isset($mapping[$index])) {
-                            $value = $cell->getValue();
+                        $cells = $row->getCells(); // mảng Cell 0..N
+                        $rowData = [];
 
-                            // Nếu là DateTime thì format lại
+                        foreach ($mapIdxToField as $colIdx => $fieldName) {
+                            $value = isset($cells[$colIdx]) ? $cells[$colIdx]->getValue() : null;
+
                             if ($value instanceof \DateTimeInterface) {
                                 $value = $value->format('Y-m-d');
                             }
+                            if (is_string($value)) {
+                                $value = trim($value);
+                            }
 
-                            $rowData[$mapping[$index]] = is_string($value) ? trim($value) : $value;
+                            $rowData[$fieldName] = $value;
+                        }
+
+                        // Bỏ dòng rỗng
+                        if (!array_filter($rowData, fn($v) => $v !== null && $v !== '')) {
+                            continue;
+                        }
+
+                        $dataBatch[] = $rowData;
+
+                        if (count($dataBatch) === $batchSize) {
+                            $this->handleBatch($type, $dataBatch);
+                            $dataBatch = [];
+                            // gc_collect_cycles(); // có thể bật nếu muốn đảm bảo RAM ổn định
                         }
                     }
 
-                    // Bỏ dòng rỗng
-                    if (!array_filter($rowData)) continue;
-
-                    $dataBatch[] = $rowData;
-
-                    if (count($dataBatch) === $batchSize) {
-                        $this->handleBatch($type, $dataBatch);
-                        $dataBatch = [];
-                    }
+                    // Sau khi xử lý xong sheet được chọn → thoát luôn
+                    break;
                 }
+
+                $currentSheetIndex++;
             }
 
-            // Xử lý batch cuối
+            // Batch cuối
             if (!empty($dataBatch)) {
                 $this->handleBatch($type, $dataBatch);
             }
 
             $reader->close();
             return $this->returnResult(200, true, false, "Thành Công");
-        } catch (Exception $e) {
-            $this->errs[] = 'Lỗi import Excel: ' . $e->getMessage();
+        } catch (\Throwable $e) {
+            $this->errs[] = 'Lỗi import Excel (xlsx-stream): ' . $e->getMessage();
             return $this->returnResult(500, false, true, '');
         }
     }
 
-    protected function createSpoutReader($path): ReaderInterface
-    {
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
-        if ($extension === 'xlsx') {
-            return ReaderEntityFactory::createXLSXReader();
-        } elseif ($extension === 'xls') {
-            return ReaderEntityFactory::createXLSReader();
-        } elseif ($extension === 'csv') {
-            return ReaderEntityFactory::createCSVReader();
-        } else {
-            throw new Exception("Unsupported file extension: .$extension");
-        }
-    }
+    /**
+     * Đọc file .xls theo từng khúc (chunk) để tiết kiệm RAM (giả lập streaming).
+     * - Chỉ hỗ trợ .xls (BIFF)
+     * - PhpSpreadsheet + ReadFilter, mỗi lần chỉ nạp batchSize dòng
+     * - API giống hệt hàm xử lý .xlsx của bạn
+     *
+     * @param string $path       Đường dẫn file .xls
+     * @param string $type       Loại dữ liệu (để truyền cho handleBatch)
+     * @param int    $batchSize  Số dòng mỗi khúc (nên 500–2000 cho host 1GB RAM)
+     * @param int    $startRow   Dòng bắt đầu đọc (1-based). Nếu có header, truyền 2.
+     * @param int    $sheetIndex Sheet index (0-based), chỉ xử lý 1 sheet
+     */
+    public function importLargeExcel_xls(
+        string $path,
+        string $type,
+        int $batchSize = 1000,
+        int $startRow = 1,
+        int $sheetIndex = 0
+    ): array {
+        $mapping = $this->excel_mapping_db($type);
 
-
-    public function import($mapping, $path, $type, $startRow = 1, $sheetIndex = 0, $batchSize = 1000): array
-    {
         try {
             if (!file_exists($path)) {
-                throw new Exception("File not found: " . $path);
+                throw new \Exception("File not found: $path");
+            }
+            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if ($ext !== 'xls') {
+                throw new \Exception("importLargeExcel_xls() chỉ hỗ trợ .xls, đã nhận .$ext");
             }
 
-            $reader = IOFactory::createReaderForFile($path);
-            $reader->setReadDataOnly(true); // chỉ đọc dữ liệu, bỏ định dạng
-            $spreadsheet = $reader->load($path);
-            $worksheet = $spreadsheet->getSheet($sheetIndex);
+            // Chuẩn bị: tính sẵn index cột từ mapping để không cần getHighestColumn()
+            // ["A" => "field"] -> [1 => "field"] (1-based theo PhpSpreadsheet)
+            $colIndexToField = [];
+            $maxColIndex = 0;
+            foreach ($mapping as $colLetter => $field) {
+                $idx = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($colLetter);
+                $colIndexToField[$idx] = $field;
+                if ($idx > $maxColIndex) $maxColIndex = $idx;
+            }
 
-            $rowIterator = $worksheet->getRowIterator();
-            $dataBatch = [];
-            // $result = [];
+            // Filter nội bộ cho từng khúc
+            $filter = new class implements \PhpOffice\PhpSpreadsheet\Reader\IReadFilter {
+                private int $startRow = 1;
+                private int $endRow = 1;
+                public function setRows(int $startRow, int $chunkSize): void
+                {
+                    $this->startRow = $startRow;
+                    $this->endRow   = $startRow + $chunkSize - 1;
+                }
+                public function readCell($column, $row, $worksheetName = ''): bool
+                {
+                    // Chỉ đọc các ô nằm trong dải dòng cần thiết; cột nào cần đã do ta lấy trực tiếp theo mapping.
+                    return $row >= $this->startRow && $row <= $this->endRow;
+                }
+            };
 
-            foreach ($rowIterator as $rowIndex => $row) {
-                if ($rowIndex < $startRow) continue;
+            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xls();
+            $reader->setReadDataOnly(true);        // bỏ style/format để nhẹ RAM
+            $reader->setReadFilter($filter);
 
-                $rowData = [];
+            $currentRow = $startRow;
+            $emptyChunkStreak = 0;
+            $maxEmptyChunkStreak = 2; // gặp 2 khúc rỗng liên tiếp thì dừng (tránh quét dài ở phần đuôi trống)
 
-                foreach ($row->getCellIterator() as $cell) {
-                    $column = $cell->getColumn();
-                    if (isset($mapping[$column])) {
-                        $rowData[$mapping[$column]] = trim($cell->getValue());
+            while (true) {
+                $filter->setRows($currentRow, $batchSize);
+
+                // Mỗi khúc load lại workbook nhưng chỉ parse phần dòng đã filter
+                $spreadsheet = $reader->load($path);
+                /** @var \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet */
+                $sheet = $spreadsheet->getSheet($sheetIndex);
+
+                $rowsData = [];
+                $nonEmptyRows = 0;
+
+                // Đọc đúng dải dòng của khúc hiện tại
+                $endRow = $currentRow + $batchSize - 1;
+                for ($r = $currentRow; $r <= $endRow; $r++) {
+                    $record = [];
+                    $rowAllEmpty = true;
+
+                    // Chỉ đọc các cột có trong mapping để giảm overhead
+                    foreach ($colIndexToField as $colIdx => $fieldName) {
+                        $cell = $sheet->getCellByColumnAndRow($colIdx, $r, false);
+                        // PhpSpreadsheet có thể tạo cell null nếu vượt phạm vi thực; an toàn kiểm tra isNull
+                        if ($cell === null) {
+                            $record[$fieldName] = null;
+                            continue;
+                        }
+
+                        $val = $cell->getValue();
+
+                        // Convert ngày trong .xls:
+                        // - BIFF lưu ngày dạng số seri; nếu cell là date-format thì isDateTime = true
+                        // - Một số file để format chưa chuẩn → thử thêm khi là số
+                        if (\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime($cell)) {
+                            try {
+                                $dt = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($val);
+                                $val = $dt instanceof \DateTimeInterface ? $dt->format('Y-m-d') : $val;
+                            } catch (\Throwable $e) {
+                                // Giữ nguyên nếu convert lỗi
+                            }
+                        } elseif (is_numeric($val)) {
+                            // Optional: thử convert nếu là số seri và nằm trong khoảng hợp lý (1900–2100)
+                            // Tránh convert nhầm số lượng/giá
+                            try {
+                                $dt = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($val);
+                                if ($dt instanceof \DateTimeInterface) {
+                                    $year = (int)$dt->format('Y');
+                                    if ($year >= 1900 && $year <= 2100) {
+                                        $val = $dt->format('Y-m-d');
+                                    }
+                                }
+                            } catch (\Throwable $e) {
+                            }
+                        }
+
+                        if (is_string($val)) $val = trim($val);
+                        if ($val !== null && $val !== '') $rowAllEmpty = false;
+
+                        $record[$fieldName] = $val;
+                    }
+
+                    if (!$rowAllEmpty) {
+                        $rowsData[] = $record;
+                        $nonEmptyRows++;
                     }
                 }
 
-                // Bỏ dòng rỗng
-                if (!array_filter($rowData)) continue;
-
-                $dataBatch[] = $rowData;
-
-                if (count($dataBatch) === $batchSize) {
-                    // Xử lý 1 batch 1000 dòng
-                    $this->handleBatch($type, $dataBatch);
-                    $dataBatch = []; // reset batch
+                if (!empty($rowsData)) {
+                    // Có dữ liệu → xử lý và chuyển sang khúc kế tiếp
+                    $this->handleBatch($type, $rowsData);
+                    $currentRow += $batchSize;
+                    $emptyChunkStreak = 0;
+                } else {
+                    // Khúc rỗng
+                    $emptyChunkStreak++;
+                    if ($emptyChunkStreak >= $maxEmptyChunkStreak) {
+                        // Gặp nhiều khúc rỗng liên tiếp → coi như hết file
+                        $spreadsheet->disconnectWorksheets();
+                        unset($spreadsheet);
+                        gc_collect_cycles();
+                        break;
+                    }
+                    // Không tăng currentRow để thử lại khúc kế tiếp (đề phòng có dải dữ liệu cách quãng rất xa),
+                    // hoặc bạn có thể currentRow += $batchSize; nếu chắc chắn dữ liệu liên tục
+                    $currentRow += $batchSize;
                 }
+
+                // Giải phóng RAM sau mỗi khúc
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet);
+                gc_collect_cycles();
             }
 
-            // Xử lý phần còn lại < 1000 dòng
+            return $this->returnResult(200, true, false, "Thành Công");
+        } catch (\Throwable $e) {
+            $this->errs[] = 'Lỗi importLargeExcel_xls (stream-like): ' . $e->getMessage();
+            return $this->returnResult(500, false, true, '');
+        }
+    }
+
+    public function importLargeExcel_csv(
+        string $path,
+        string $type,
+        int $startRow = 7,
+        int $batchSize = 1000
+    ): array {
+        $mapping = $this->excel_mapping_db($type);
+        if (!$mapping) {
+            return $this->returnResult(400, false, true, "Không tìm thấy mapping cho type: $type");
+        }
+        try {
+            if (!file_exists($path)) {
+                throw new \Exception("File not found: $path");
+            }
+
+            // Chuẩn hoá mapping "A"=>"field" -> [0=>"field", ...]
+            $mapIdxToField = [];
+            foreach ($mapping as $colLetter => $field) {
+                $idx = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($colLetter) - 1;
+                $mapIdxToField[$idx] = $field;
+            }
+
+            // Tạo CSV reader của Spout (streaming)
+            $reader = \Box\Spout\Reader\Common\Creator\ReaderEntityFactory::createCSVReader();
+
+            // Thiết lập delimiter/encoding
+            if (method_exists($reader, 'setFieldDelimiter')) {
+                $reader->setFieldDelimiter($this->detectCsvDelimiter($path));
+            }
+            if (method_exists($reader, 'setEncoding')) {
+                // Nếu phía đối tác là UTF-8 thì để 'UTF-8'; nếu có dấu hiệu khác hãy đổi sang 'ISO-8859-1' / 'WINDOWS-1252'
+                $reader->setEncoding('UTF-8');
+            }
+            if (method_exists($reader, 'setShouldPreserveEmptyRows')) {
+                $reader->setShouldPreserveEmptyRows(true);
+            }
+
+            $reader->open($path);
+
+            $dataBatch = [];
+            $rowNumber = 0;
+
+            foreach ($reader->getSheetIterator() as $sheet) { // CSV chỉ có 1 "sheet"
+                foreach ($sheet->getRowIterator() as $row) {
+                    $rowNumber++;
+                    if ($rowNumber < $startRow) continue;
+
+                    $cells = $row->getCells(); // array of CellInterface
+                    $rowData = [];
+
+                    foreach ($mapIdxToField as $colIdx => $fieldName) {
+                        $value = isset($cells[$colIdx]) ? $cells[$colIdx]->getValue() : null;
+                        // if (is_string($value)) $value = trim($value);
+                        if (is_string($value)) {
+                            // làm sạch null-byte (thường gặp khi nguồn UTF-16)
+                            if (strpos($value, "\0") !== false) {
+                                $value = str_replace("\0", '', $value);
+                            }
+                            // chuyển an toàn về UTF-8 (tự dò encoding phổ biến)
+                            $value = $this->toUtf8Safe($value);
+                            $value = trim($value);
+                        }
+                        $rowData[$fieldName] = $value;
+                    }
+
+                    if (!array_filter($rowData, fn($v) => $v !== null && $v !== '')) continue;
+
+                    $dataBatch[] = $rowData;
+                    if (count($dataBatch) === $batchSize) {
+                        $this->handleBatch($type, $dataBatch);
+                        $dataBatch = [];
+                    }
+                }
+                break; // chỉ 1 CSV
+            }
+
             if (!empty($dataBatch)) {
                 $this->handleBatch($type, $dataBatch);
             }
 
+            $reader->close();
             return $this->returnResult(200, true, false, "Thành Công");
-        } catch (Exception $e) {
-            $this->errs[] = 'Lỗi import Excel: ' . $e->getMessage();
+        } catch (\Throwable $e) {
+            $this->errs[] = 'Lỗi import CSV (stream): ' . $e->getMessage();
             return $this->returnResult(500, false, true, '');
         }
     }
+
+
+    private function detectCsvDelimiter(string $path): string
+    {
+        $fh = fopen($path, 'rb');
+        if (!$fh) return ',';
+        // Bỏ BOM UTF-8 nếu có
+        $start = fread($fh, 3);
+        if ($start !== "\xEF\xBB\xBF") fseek($fh, 0);
+        $line = fgets($fh) ?: '';
+        fclose($fh);
+
+        $candidates = [",", ";", "\t"];
+        $best = ",";
+        $bestCount = -1;
+        foreach ($candidates as $d) {
+            $cnt = substr_count($line, $d);
+            if ($cnt > $bestCount) {
+                $best = $d;
+                $bestCount = $cnt;
+            }
+        }
+        return $best;
+    }
+
+    private function toUtf8Safe(?string $s): ?string
+    {
+        if ($s === null) return null;
+
+        // Loại null-byte (hay gặp khi nguồn UTF-16)
+        if (strpos($s, "\0") !== false) {
+            $s = str_replace("\0", '', $s);
+        }
+
+        // Danh sách encoding ứng viên (đủ dùng cho CSV/Excel VN)
+        $candidates = ['UTF-8', 'Windows-1252', 'ISO-8859-1', 'Windows-1258'];
+
+        // Lọc theo môi trường: chỉ giữ encoding mbstring hỗ trợ
+        $supported = array_map('strtolower', mb_list_encodings());
+        $encList = array_values(array_filter($candidates, function ($e) use ($supported) {
+            // so sánh không phân biệt hoa thường
+            return in_array(strtolower($e), $supported, true);
+        }));
+
+        // Thử detect
+        $enc = @mb_detect_encoding($s, $encList, true);
+        if ($enc === false) {
+            // Nếu detect thất bại, cứ thử convert từ từng encoding
+            foreach ($encList as $try) {
+                $out = @mb_convert_encoding($s, 'UTF-8', $try);
+                if ($out !== false) return $out;
+                $out = @iconv($try, 'UTF-8//IGNORE', $s);
+                if ($out !== false) return $out;
+            }
+            // Bó tay thì trả nguyên (đỡ crash)
+            return $s;
+        }
+
+        if ($enc === 'UTF-8') return $s;
+
+        $out = @mb_convert_encoding($s, 'UTF-8', $enc);
+        if ($out !== false) return $out;
+
+        $out = @iconv($enc, 'UTF-8//IGNORE', $s);
+        return $out !== false ? $out : $s;
+    }
+
+
 
     public function handleBatch($type, $dataBatch)
     {
         Log::info("Xử lý batch $type với " . count($dataBatch) . " dòng dữ liệu");
         // Log::info("Dữ liệu: " . json_encode($dataBatch, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        Log::info("Dữ liệu: " . json_encode($dataBatch));
-    }
-
-
-    public function import_no($mapping, $path, $startRow = 1, $sheetIndex = 0): array|bool
-    {
-
-        try {
-            if (!file_exists($path)) {
-                throw new Exception("File not found: " . $path);
-            }
-
-            $reader = new Xlsx();
-            $reader->setReadDataOnly(true); // chỉ đọc dữ liệu, bỏ định dạng
-            $spreadsheet = $reader->load($path);
-            $sheet = $spreadsheet->getSheet($sheetIndex);
-            $rows = $sheet->toArray(null, false, true, true); // A, B, C...
-
-            $data = [];
-
-            foreach ($rows as $index => $row) {
-                if ($index < $startRow) continue; // Bỏ dòng tiêu đề && index trong $rows bắt đầu từ 1
-
-                $record = [];
-
-                foreach ($mapping as $column => $fieldName) {
-                    $record[$fieldName] = trim($row[$column] ?? '');
-                }
-
-                // Bỏ dòng rỗng hoàn toàn
-                if (!array_filter($record)) continue;
-
-                $data[] = $record;
-            }
-
-            return $data;
-        } catch (Exception $e) {
-            Log::error('Lỗi import Excel: ' . $e->getMessage());
-            return false;
+        // Chỉ log mẫu 10 dòng để tránh file log quá lớn
+        $sample = array_slice($dataBatch, 0, 10);
+        // Log::info("Dữ liệu: " . json_encode($dataBatch));
+        if ($type == 'tender') {
+            Log::info('Dữ liệu mẫu', ['rows' => $sample]);
         }
     }
+
 
     // app/services/handleExcel/ImportExcel.php
     public function receiveMail($days = 10)
@@ -449,12 +763,6 @@ class ImportExcel
     public function handleFileZip(array $zipFiles): array
     {
 
-        // cấu trúc dữ liệu đầu vào
-        //        "zips" => array:2 [
-        //     "filename" => "5001580 R000772VN TenderQuotaStatus.zip"
-        //     "path" => "C:\xampp\htdocs\temp2\temp2\storage\app/tmp_zips/5001580 R000772VN TenderQuotaStatus.zip"
-        //   ]
-
         $filenameWithoutExt = pathinfo($zipFiles['filename'], PATHINFO_FILENAME);
         $pathFolderExcel = storage_path('app/tmp_excels/' . $filenameWithoutExt);
         // đã tồn tại thì xóa
@@ -503,6 +811,46 @@ class ImportExcel
             if (file_exists($zipFiles['path'])) {
                 unlink($zipFiles['path']);
             }
+        }
+    }
+
+    public function detectExcelFormat(string $path): string
+    {
+        if (!is_file($path) || !is_readable($path) || filesize($path) === 0) {
+            return 'unreadable';
+        }
+
+        // Thử nhận dạng bằng PhpSpreadsheet trước
+        try {
+            $type = \PhpOffice\PhpSpreadsheet\IOFactory::identify($path);
+            // Mapping về nhóm mình dùng
+            return match ($type) {
+                'Xlsx' => 'xlsx_zip',
+                'Xls'  => 'xls_ole',
+                'Ods'  => 'ods',
+                'Csv'  => 'csv',
+                'Html' => 'html',
+                'Slk'  => 'sylk',
+                'Gnumeric' => 'gnumeric',
+                'Xml'  => 'xml',
+                default => 'unknown',
+            };
+        } catch (\Throwable $e) {
+            // Fallback: magic bytes 8 byte đầu
+            $fh = @fopen($path, 'rb');
+            if (!$fh) return 'unreadable';
+            $sig8 = fread($fh, 8) ?: '';
+            fclose($fh);
+
+            if (strncmp($sig8, "PK\x03\x04", 4) === 0) return 'xlsx_zip';
+            if ($sig8 === "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1") return 'xls_ole';
+
+            $low = strtolower($sig8);
+            if (str_contains($low, '<html') || str_contains($low, '<!doctyp')) return 'html';
+            if (str_contains($low, '<?xml') || str_contains($low, '<workboo')) return 'xml';
+            if (strncmp($sig8, "ID;P", 4) === 0) return 'sylk';
+
+            return 'unknown';
         }
     }
 
