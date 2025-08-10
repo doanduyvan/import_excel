@@ -35,5 +35,6 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
-    }
+    },
+    "intelephense.diagnostics.undefinedMethods": false
 }

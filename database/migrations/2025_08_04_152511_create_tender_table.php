@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tender', function (Blueprint $table) {
-           $table->id();
+            $table->id();
             $table->text('customer_quota_description')->nullable();
             $table->date('cust_quota_start_date')->nullable();
             $table->date('cust_quota_end_date')->nullable();
@@ -24,6 +24,7 @@ return new class extends Migration
             $table->float('remaining_quota')->nullable();
             $table->date('report_run_date')->nullable();
             $table->decimal('tender_price', 15, 2)->nullable();
+            $table->text('hash_key')->unique(); // dùng để chống trùng
 
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');

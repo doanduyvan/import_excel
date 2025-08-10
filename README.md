@@ -138,3 +138,70 @@ tại mỗi phương thức trả về sẽ có cấu trúc
                     'message' => "Không có email trong $days ngày gần đây.",
                     'data' => null
                 ];
+
+
+      1 => 
+  array (
+    'customer_code' => '30191128',
+    'customer_name' => 'Nha Thuoc Hong Dai',
+    'area' => 'Thanh Pho Ho Chi Minh',
+    'sap_item_code' => '21216728',
+    'item_short_description' => 'LACIPIL TAB 4MG 28\'S',
+    'order_number' => '272838611',
+    'invoice_number' => '1229451860',
+    'contract_number' => '0',
+    'expiry_date' => '07/06/2026',
+    'selling_price' => 91655.63,
+    'commercial_quantity' => 170,
+    'invoice_confirmed_date' => '15/01/2025',
+    'net_sales_value' => 15581457,
+    'accounts_receivable_date' => '15/01/2025',
+  ),
+  2 => 
+  array (
+    'customer_code' => '30191083',
+    'customer_name' => 'Ho Kinh Doanh Hai Minh',
+    'area' => 'Thanh Pho Ho Chi Minh',
+    'sap_item_code' => '21216728',
+    'item_short_description' => 'LACIPIL TAB 4MG 28\'S',
+    'order_number' => '272801616',
+    'invoice_number' => '1229448514',
+    'contract_number' => '0',
+    'expiry_date' => '01/03/2026',
+    'selling_price' => 92565.81,
+    'commercial_quantity' => 80,
+    'invoice_confirmed_date' => '15/01/2025',
+    'net_sales_value' => 7405265,
+    'accounts_receivable_date' => '15/01/2025',
+  ),
+
+đây là dữ liệu đọc từ file excel, đã mapping đúng key chính là cột trong db còn giá trị chính là dữ liệu.
+hiện tại trong file này dữ liệu trùng rất nhiều.
+trong db của tôi có 4 bảng, dùng để lưu các giá trị như trên
+đầu tiên là bảng customer sẽ lưu 
+    'id' => khi insert tự động tăng
+    'customer_code' => '30191128', cột này sẽ là UNIQUE, trùng thì bỏ qua, không cập nhật
+    'customer_name' => 'Nha Thuoc Hong Dai',
+    'area' => 'Thanh Pho Ho Chi Minh',
+    'create_at' => khi insert tự động nhận lúc insert
+    'update_at' => khi insert tự động nhận lúc insert
+tiếp đến là bảng sản phẩm sẽ lưu
+    'id' => tự động tăng
+    'sap_item_code' => '21216728', cột này cũng là UNIQUE, trùng thì bỏ qua không cập nhật
+    'item_short_description' => 'LACIPIL TAB 4MG 28\'S',
+còn lại là bảng salse sẽ lưu
+    'id' => tự động tăng
+    'order_number' => '272838611', cột này UNIQUE, trùng thì bỏ qua không cập nhật
+    'invoice_number' => '1229451860',
+    'contract_number' => '0',
+    'expiry_date' => '07/06/2026',
+    'selling_price' => 91655.63,
+    'commercial_quantity' => 170,
+    'invoice_confirmed_date' => '15/01/2025',
+    'net_sales_value' => 15581457,
+    'accounts_receivable_date' => '15/01/2025',
+    'customer_id' => khóa chính của bảng customer, so sánh dựa trên customer_code trong từng row của file excel
+có 1 bản trung gian để lưu mối quan hệ nhiều nhiều giữa bảng salse và bảng product
+đó là bảng products_sales, trong mỗi row của file excel có cột sap_item_code là mã sản phẩm, và cột order_number mã salse để biết nên ghi mối quan hệ
+'product_id' => id của bảng product,
+'sales_id' => id của bảng sales

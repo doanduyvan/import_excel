@@ -5,13 +5,17 @@ namespace App\Services\handleExcel;
 use Illuminate\Support\Facades\Log;
 use Exception;
 use ZipArchive;
-
+use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use Carbon\Carbon;
 
 
 class ImportExcel
 {
 
     public $errs = []; // mảng lưu các lỗi trong quá trình xử lý
+    private $isTruncatedTender = false;
 
     public function excel_mapping_db($type): array | null
     {
@@ -174,7 +178,7 @@ class ImportExcel
         string $path,
         string $type,
         int $batchSize = 1000,
-        int $startRow = 1,
+        int $startRow = 7,
         int $sheetIndex = 0
     ): array {
         // Lấy mapping theo type (key là cột chữ: "A" => "field")
@@ -592,16 +596,340 @@ class ImportExcel
 
     public function handleBatch($type, $dataBatch)
     {
-        Log::info("Xử lý batch $type với " . count($dataBatch) . " dòng dữ liệu");
-        // Log::info("Dữ liệu: " . json_encode($dataBatch, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        // Chỉ log mẫu 10 dòng để tránh file log quá lớn
-        $sample = array_slice($dataBatch, 0, 10);
-        // Log::info("Dữ liệu: " . json_encode($dataBatch));
-        if ($type == 'tender') {
-            Log::info('Dữ liệu mẫu', ['rows' => $sample]);
+        // dữ liệu data Batch đã được chunk, chỉ nhận vào tối đa 1k dòng, và dữ liệu đã định dạng theo maping, 'tên cột' => giá trị
+
+        $this->insertCustomer($dataBatch);
+        $this->insertProduct($dataBatch);
+
+        if ($type === 'tender') {
+
+            $this->insertTender($dataBatch);
+        }
+
+        if ($type === 'sales') {
+
+            $this->insertSales($dataBatch);
         }
     }
 
+    public function insertCustomer($dataBatch)
+    {
+        $now = now('Asia/Ho_Chi_Minh');
+
+        $customers = [];
+
+        foreach ($dataBatch as $item) {
+            if (!isset($item['customer_code']) || $item['customer_code'] === '') {
+                $this->errs[] = "Customer code không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+            $customers[] = [
+                'customer_code' => $item['customer_code'] ?? '',
+                'customer_name' => $item['customer_name'] ?? '',
+                'area' => $item['area'] ?? '',
+                'created_at' => $now,
+            ];
+        }
+
+        if (!empty($customers)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($customers, 1000) as $chunk) {
+                    DB::table('customers')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert customers: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+
+        return;
+    }
+
+
+    public function insertProduct($dataBatch)
+    {
+        $now = now('Asia/Ho_Chi_Minh');
+        $products = [];
+        foreach ($dataBatch as $item) {
+            if (!isset($item['sap_item_code']) || $item['sap_item_code'] === '') {
+                $this->errs[] = "sap_item_code không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+            $products[] = [
+                'sap_item_code' => $item['sap_item_code'] ?? '',
+                'item_short_description' => $item['item_short_description'] ?? '',
+                'created_at' => $now,
+            ];
+        }
+
+        if (!empty($products)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($products, 1000) as $chunk) {
+                    DB::table('products')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert products: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+
+        return;
+    }
+
+    public function insertSales($dataBatch)
+    {
+        $now = now('Asia/Ho_Chi_Minh');
+
+        // lấy id của customer_code
+        $customerCodes = [];
+        foreach ($dataBatch as $item) {
+            if (!isset($item['customer_code']) || $item['customer_code'] === '') continue;
+            $customerCodes[$item['customer_code']] = $item['customer_code'];
+        }
+
+        $customerIds = DB::table('customers')
+            ->whereIn('customer_code', array_keys($customerCodes))
+            ->pluck('id', 'customer_code')
+            ->toArray();
+
+        $sales = [];
+        foreach ($dataBatch as $item) {
+            if (!isset($item['order_number']) || $item['order_number'] === '') {
+                $this->errs[] = "order_number không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+
+            if (!isset($item['customer_code']) || $item['customer_code'] === '') {
+                $this->errs[] = "customer_code không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+            $sales[] = [
+                'order_number' => $item['order_number'] ?? '',
+                'invoice_number' => $item['invoice_number'] ?? '',
+                'contract_number' => $item['contract_number'] ?? '',
+                'expiry_date' => $this->parseDateDMYToYMD($item['expiry_date']),
+                'selling_price' => $item['selling_price'] ?? 0,
+                'commercial_quantity' => $item['commercial_quantity'] ?? 0,
+                'invoice_confirmed_date' => $this->parseDateDMYToYMD($item['invoice_confirmed_date']),
+                'net_sales_value' => $item['net_sales_value'] ?? 0,
+                'accounts_receivable_date' => $this->parseDateDMYToYMD($item['accounts_receivable_date']),
+                'customer_id' =>  $customerIds[$item['customer_code']] ?? '',
+                'created_at' => $now,
+            ];
+        }
+
+        if (!empty($sales)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($sales, 1000) as $chunk) {
+                    DB::table('sales')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert sales: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+
+        // sau khi insert salse thì cần insert vào bảng sales_products
+        // B1: Lấy danh sách order_number và sap_item_code từ batch
+        $orderNumbers = [];
+        $sapItemCodes = [];
+        foreach ($dataBatch as $item) {
+            if (!empty($item['order_number'])) {
+                $orderNumbers[] = $item['order_number'];
+            }
+            if (!empty($item['sap_item_code'])) {
+                $sapItemCodes[] = $item['sap_item_code'];
+            }
+        }
+        $orderNumbers = array_values(array_unique($orderNumbers));
+        $sapItemCodes = array_values(array_unique($sapItemCodes));
+        // B2: Lấy ID từ DB
+        $saleIds = DB::table('sales')->whereIn('order_number', $orderNumbers)->pluck('id', 'order_number')->toArray();
+        $productIds = DB::table('products')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
+
+        // B3: Ghép bảng trung gian
+        $productSales = [];
+        foreach ($dataBatch as $item) {
+            $orderNumber = $item['order_number'] ?? null;
+            $sapItemCode = $item['sap_item_code'] ?? null;
+
+            if (!$orderNumber || !$sapItemCode) {
+                $this->errs[] = "Thiếu order_number hoặc sap_item_code trong dòng: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+
+            $saleId = $saleIds[$orderNumber] ?? null;
+            $productId = $productIds[$sapItemCode] ?? null;
+
+            if ($saleId && $productId) {
+                $productSales[] = [
+                    'sale_id' => $saleId,
+                    'product_id' => $productId,
+                ];
+            }
+        }
+
+        // B4: Insert bảng trung gian
+        if (!empty($productSales)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($productSales, 1000) as $chunk) {
+                    DB::table('products_sales')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert vào products_sales: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+        return;
+    }
+
+    public function insertTender($dataBatch)
+    {
+        // Log::info($dataBatch);
+        // return; // tạm thời không làm gì, chỉ để test
+        $now = now('Asia/Ho_Chi_Minh');
+
+        // lấy id của customer_code
+        $customerCodes = [];
+        foreach ($dataBatch as $item) {
+            if (!isset($item['customer_code']) || $item['customer_code'] === '') continue;
+            $customerCodes[$item['customer_code']] = $item['customer_code'];
+        }
+
+        $customerIds = DB::table('customers')
+            ->whereIn('customer_code', array_keys($customerCodes))
+            ->pluck('id', 'customer_code')
+            ->toArray();
+
+        // lưu ý quan trọng: không có mã tender, chỉ cần insert vào bảng tender
+        // nên không cần kiểm tra trùng lặp, chỉ cần insert tất cả các bản ghi
+        // kiểm tra $this->isTruncatedTender để biết có cần xóa dữ liệu cũ hay không
+        $tenders = [];
+        foreach ($dataBatch as $item) {
+            if (!isset($item['customer_code']) || $item['customer_code'] === '') {
+                $this->errs[] = "customer_code không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+            $hash = md5(json_encode([
+                $item['customer_code'],
+                $item['cust_quota_start_date'],
+                $item['cust_quota_end_date'],
+                $item['customer_quota_description']
+            ]));
+            $tenders[] = [
+                'hash_key' => $hash,
+                'customer_quota_description' => $item['customer_quota_description'] ?? '',
+                'cust_quota_start_date' =>  $this->parseDateDMYToYMD($item['cust_quota_start_date']),
+                'cust_quota_end_date' => $this->parseDateDMYToYMD($item['cust_quota_end_date']),
+                'cust_quota_quantity' => $item['cust_quota_quantity'] ?? 0,
+                'invoice_quantity' => $item['invoice_quantity'] ?? 0,
+                'return_quantity' => $item['return_quantity'] ?? 0,
+                'allocated_quantity' => $item['allocated_quantity'] ?? 0,
+                'used_quota' => $item['used_quota'] ?? 0,
+                'remaining_quota' => $item['remaining_quota'] ?? 0,
+                'report_run_date' => $this->parseDateDMYToYMD($item['report_run_date']),
+                'tender_price' => $item['tender_price'] ?? 0,
+                'customer_id' => $customerIds[$item['customer_code']] ?? '',
+                'created_at' => $now,
+            ];
+        }
+
+        if (!$this->isTruncatedTender) {
+            // nếu có truncate thì xóa hết dữ liệu cũ
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            DB::table('products_tender')->truncate();
+            DB::table('tender')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+            $this->isTruncatedTender = true; // đánh dấu đã xóa dữ liệu cũ
+        }
+
+        // insert hàng loạt các bản ghi
+
+        if (!empty($tenders)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($tenders, 1000) as $chunk) {
+                    DB::table('tender')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert tender: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+
+        // sau khi insert tender thì cần insert vào bảng tender_products
+        // B1: Lấy danh sách hash_key và sap_item_code từ batch
+        $hash_key_tender = [];
+        $sapItemCodes = [];
+        foreach ($dataBatch as $item) {
+            $hash = md5(json_encode([
+                $item['customer_code'],
+                $item['cust_quota_start_date'],
+                $item['cust_quota_end_date'],
+                $item['customer_quota_description']
+            ]));
+            $hash_key_tender[] = $hash;
+            if (!empty($item['sap_item_code'])) {
+                $sapItemCodes[] = $item['sap_item_code'];
+            }
+        }
+        $hash_key_tender = array_values(array_unique($hash_key_tender));
+        $sapItemCodes = array_values(array_unique($sapItemCodes));
+
+        // B2: Lấy ID từ DB
+        $tenderIds = DB::table('tender')->whereIn('hash_key', $hash_key_tender)->pluck('id', 'hash_key')->toArray();
+        $productIds = DB::table('products')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
+
+        // B3: Ghép bảng trung gian
+        $productTenders = [];
+        foreach ($dataBatch as $item) {
+            $hash_key = md5(json_encode([
+                $item['customer_code'],
+                $item['cust_quota_start_date'],
+                $item['cust_quota_end_date'],
+                $item['customer_quota_description']
+            ]));
+            $sapItemCode = $item['sap_item_code'] ?? null;
+
+            if (!$hash_key || !$sapItemCode) {
+                $this->errs[] = "Thiếu hash_key_tender hoặc sap_item_code trong dòng: " . json_encode($item, JSON_UNESCAPED_UNICODE);
+                continue;
+            }
+
+            $tender_id = $tenderIds[$hash_key] ?? null;
+            $productId = $productIds[$sapItemCode] ?? null;
+
+            if ($tender_id && $productId) {
+                $productTenders[] = [
+                    'tender_id' => $tender_id,
+                    'product_id' => $productId,
+                ];
+            }
+        }
+        // B4: Insert bảng trung gian
+        if (!empty($productTenders)) {
+            try {
+                DB::beginTransaction();
+                foreach (array_chunk($productTenders, 1000) as $chunk) {
+                    DB::table('products_tender')->insertOrIgnore($chunk);
+                }
+                DB::commit();
+            } catch (\Exception $e) {
+                $this->errs[] = "Lỗi khi insert vào products_tender: " . $e->getMessage();
+                DB::rollBack();
+            }
+        }
+        return;
+    }
 
     // app/services/handleExcel/ImportExcel.php
     public function receiveMail($days = 10)
@@ -893,5 +1221,80 @@ class ImportExcel
         foreach ($folders as $folder) {
             $this->deleteFolder($folder);
         }
+    }
+
+    public function readSmallExcelXlsx(
+        string $path,
+        array $mapping,
+        int $startRow = 1,
+        int $sheetIndex = 0
+    ): array {
+        try {
+            if (!file_exists($path)) {
+                throw new \Exception("File not found: $path");
+            }
+
+            // Chuyển mapping từ cột chữ sang index số (1-based để dùng getCell)
+            $mapIdxToField = [];
+            foreach ($mapping as $colLetter => $field) {
+                $colIndex = Coordinate::columnIndexFromString($colLetter); // 1-based
+                $mapIdxToField[$colIndex] = $field;
+            }
+
+            // Load toàn bộ file
+            $spreadsheet = IOFactory::load($path);
+            $sheet = $spreadsheet->getSheet($sheetIndex);
+
+            $highestRow = $sheet->getHighestRow();
+            $data = [];
+
+            for ($row = $startRow; $row <= $highestRow; $row++) {
+                $rowData = [];
+
+                foreach ($mapIdxToField as $colIndex => $fieldName) {
+                    $cellValue = $sheet->getCell(Coordinate::stringFromColumnIndex($colIndex) . $row)->getValue();
+
+                    // Format ngày nếu là DateTime
+                    if ($cellValue instanceof \DateTimeInterface) {
+                        $cellValue = $cellValue->format('Y-m-d');
+                    }
+
+                    if (is_string($cellValue)) {
+                        $cellValue = trim($cellValue);
+                    }
+
+                    $rowData[$fieldName] = $cellValue;
+                }
+
+                // Bỏ qua dòng rỗng
+                if (!array_filter($rowData, fn($v) => $v !== null && $v !== '')) {
+                    continue;
+                }
+
+                $data[] = $rowData;
+            }
+
+            return $data;
+        } catch (\Throwable $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    protected function parseDateDMYToYMD($value)
+    {
+        if (!$value || !is_string($value)) return null;
+
+        $formats = ['d/m/Y', 'Ymd', 'Y-m-d'];
+
+        foreach ($formats as $format) {
+            try {
+                return Carbon::createFromFormat($format, $value)->format('Y-m-d');
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        $this->errs[] = "Lỗi định dạng ngày: $value";
+        return null;
     }
 }
