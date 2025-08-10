@@ -24,8 +24,8 @@ return new class extends Migration
             $table->float('remaining_quota')->nullable();
             $table->date('report_run_date')->nullable();
             $table->decimal('tender_price', 15, 2)->nullable();
-            $table->text('hash_key')->unique(); // dùng để chống trùng
-
+            $table->string('sap_item_code')->nullable();
+            $table->text('item_short_description')->nullable();
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');
 

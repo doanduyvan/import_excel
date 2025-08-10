@@ -818,14 +818,13 @@ class ImportExcel
                 $this->errs[] = "customer_code không được để trống trong dữ liệu: " . json_encode($item, JSON_UNESCAPED_UNICODE);
                 continue;
             }
-            $hash = md5(json_encode([
-                $item['customer_code'],
-                $item['cust_quota_start_date'],
-                $item['cust_quota_end_date'],
-                $item['customer_quota_description']
-            ]));
+            // $hash = md5(json_encode([
+            //     $item['customer_code'],
+            //     $item['cust_quota_start_date'],
+            //     $item['cust_quota_end_date'],
+            //     $item['customer_quota_description']
+            // ]));
             $tenders[] = [
-                'hash_key' => $hash,
                 'customer_quota_description' => $item['customer_quota_description'] ?? '',
                 'cust_quota_start_date' =>  $this->parseDateDMYToYMD($item['cust_quota_start_date']),
                 'cust_quota_end_date' => $this->parseDateDMYToYMD($item['cust_quota_end_date']),
@@ -837,6 +836,8 @@ class ImportExcel
                 'remaining_quota' => $item['remaining_quota'] ?? 0,
                 'report_run_date' => $this->parseDateDMYToYMD($item['report_run_date']),
                 'tender_price' => $item['tender_price'] ?? 0,
+                'sap_item_code' => $item['sap_item_code'] ?? '',
+                'item_short_description' => $item['item_short_description'] ?? '',
                 'customer_id' => $customerIds[$item['customer_code']] ?? '',
                 'created_at' => $now,
             ];
@@ -865,6 +866,9 @@ class ImportExcel
                 DB::rollBack();
             }
         }
+
+        // bỏ bảng trung gian.
+        return;
 
         // sau khi insert tender thì cần insert vào bảng tender_products
         // B1: Lấy danh sách hash_key và sap_item_code từ batch
