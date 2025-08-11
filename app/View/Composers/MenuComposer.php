@@ -1,4 +1,5 @@
 <?php
+
 namespace App\View\Composers;
 
 use Illuminate\View\View;
@@ -18,20 +19,21 @@ class MenuComposer
                 'roles' => [1],
             ],
             [
-                'name' => 'Import Excel',
+                'name' => 'Territory performance',
                 'url' => '',
                 'roles' => [1],
             ],
             [
-                'name' => 'Đơn hàng',
+                'name' => 'Detail by invoice',
                 'url' => '',
                 'roles' => [1, 2],
             ],
             [
-                'name' => 'Người dùng',
+                'name' => 'Territory Account',
                 'url' => '',
                 'roles' => [1],
-            ],
+            ]
+
         ];
 
         // Lọc menu theo role

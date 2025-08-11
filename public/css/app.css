@@ -1,51 +1,184 @@
- *{
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+ * {
+     margin: 0;
+     padding: 0;
+     box-sizing: border-box;
  }
+
+ :root {
+     --primary-color: #4CAF50;
+     --secondary-color: #f0f0f0;
+     --text-color: #333;
+     --font-family: 'Arial', sans-serif;
+     --width-sidebar: 250px;
+     --width-content: calc(100% - var(--width-sidebar));
+     --header-height: 50px;
+     --sidebar-bg-color: #0041c3;
+     --sidebar-text-color: #fff;
+ }
+
  body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-        }
-        .layout {
-            display: flex;
-            min-height: 100vh;
-        }
-        aside.sidebar {
-            width: 250px;
-            background-color: #c6c6c6;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        aside.sidebar h2 {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        aside.sidebar ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        aside.sidebar ul li {
-            margin-bottom: 10px;
-        }
-        aside.sidebar ul li a {
-            text-decoration: none;
-            color: #333;
-            display: block;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        aside.sidebar ul li a:hover {
-            background-color: #e0e0e0;
-        }
-              aside.sidebar ul li a.active {
-            background-color: #e0e0e0;
-        }
-        main.content {
-            flex: 1;
-            padding: 30px;
-            background-color: #f9f9f9;
-        }
+     margin: 0;
+     font-family: Arial, sans-serif;
+     background-color: #f5f5f5;
+ }
+
+ .layout {
+     display: flex;
+     min-height: 100vh;
+ }
+
+ aside.sidebar {
+     width: var(--width-sidebar);
+     background-color: var(--sidebar-bg-color);
+     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+ }
+
+ aside.sidebar .sidebar-title {
+     display: block;
+     font-size: 18px;
+     font-weight: bold;
+     text-align: center;
+     color: var(--sidebar-text-color);
+     padding: 20px 0;
+ }
+
+ aside.sidebar ul {
+     list-style: none;
+     padding: 0;
+     margin: 0;
+     display: flex;
+     flex-direction: column;
+     /* gap: 5px; */
+     max-height: calc(100vh - 200px);
+     overflow-y: auto;
+ }
+
+ aside.sidebar ul li {
+     /* margin-bottom: 10px; */
+ }
+
+ aside.sidebar ul li a {
+     text-decoration: none;
+     color: var(--sidebar-text-color);
+     display: block;
+     padding: 10px;
+     font-size: 16px;
+     border-top: 1px solid rgba(255, 255, 255, 1);
+ }
+
+ aside.sidebar ul li:first-child a {
+     border-top: none;
+ }
+
+ aside.sidebar ul li a:hover {
+     background-color: rgba(157, 157, 157, 0.5);
+ }
+
+ aside.sidebar ul li a.active {
+     background-color: rgba(131, 131, 131, 0.7);
+ }
+
+ main.content {
+     flex: 1;
+     background-color: #f9f9f9;
+     margin-top: var(--header-height);
+ }
+
+ .header {
+     position: fixed;
+     background-color: white;
+     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+     color: white;
+     text-align: center;
+     top: 0;
+     right: 0;
+     height: var(--header-height);
+     width: var(--width-content);
+     display: flex;
+ }
+
+ .menu-toggle {
+     display: none;
+     place-items: center;
+     padding: 0 15px;
+     cursor: pointer;
+ }
+
+ .menu-toggle>svg {
+     width: 30px;
+     height: 30px;
+     color: black;
+ }
+
+ .menu-toggle-close {
+     display: none;
+ }
+
+ .overlay-sidebar {
+     display: none;
+ }
+
+ @media (max-width: 1024px) {
+     :root {
+         --width-content: 100%;
+     }
+
+     aside.sidebar {
+         position: fixed;
+         left: calc(-1* (var(--width-sidebar) + 10px));
+         top: 0;
+         z-index: 10;
+         height: 100vh;
+         transition: left 0.3s ease-in-out;
+     }
+
+     .menu-toggle {
+         display: grid;
+     }
+
+     .menu-toggle-checkbox:checked~aside.sidebar {
+         left: 0;
+     }
+
+     .menu-toggle-close {
+         display: flex;
+         justify-content: center;
+         align-items: center;
+         position: absolute;
+         top: 10px;
+         right: 10px;
+
+     }
+
+     .menu-toggle-close>svg {
+         width: 30px;
+         height: 30px;
+         color: white;
+     }
+
+     .overlay-sidebar {
+         display: block;
+         position: fixed;
+         inset: 0;
+         /* background-color: rgba(255, 255, 255, 0.8); */
+         background-color: rgba(35, 35, 35, 0.8);
+
+         z-index: 9;
+         transition: all .3s linear;
+         visibility: hidden;
+         opacity: 0;
+     }
+
+     .menu-toggle-checkbox:checked~.overlay-sidebar {
+         opacity: 1;
+         visibility: visible;
+     }
+
+     main.content {
+         width: 100%;
+     }
+
+     .header {
+         width: 100%;
+     }
+ }
