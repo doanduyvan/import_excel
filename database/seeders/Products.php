@@ -8,6 +8,7 @@ use App\Services\handleExcel\ImportExcel;
 use App\Models\Products as ProductModel;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 
 
@@ -24,6 +25,8 @@ class Products extends Seeder
             'A' => 'sap_item_code',
             'B' => 'item_short_description',
         ];
+
+
         $startRow = 4;
         $data = $importExcel->readSmallExcelXlsx($pathExcel, $mapping, $startRow);
         try {

@@ -13,12 +13,11 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('account_name');
-            $table->string('email')->unique(); // thường cũng unique
-            $table->string('password');
-            $table->integer('role')->default(2); // 1: admin, 2: staff
-            $table->string('account_code')->unique();
+            $table->string('account_name')->unique();
+            $table->string('password')->default('123456');
+            $table->string('role')->default('staff'); // 1: admin, 2: staff
             $table->boolean('is_active')->default(true);
+            $table->string('fullname')->nullable();
             $table->timestamps();
         });
     }
