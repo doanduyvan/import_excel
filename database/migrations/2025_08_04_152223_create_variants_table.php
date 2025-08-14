@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('products_sales', function (Blueprint $table) {
+        Schema::create('variants', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('variant_id')->constrained('variants')->onDelete('cascade');
-            $table->foreignId('sale_id')->constrained('sales')->onDelete('cascade');
-
-            $table->unique(['variant_id', 'sale_id']);
+            $table->string('sap_item_code')->unique();
+            $table->text('item_short_description')->nullable();
+            $table->timestamps();
+            $table->foreignId('product_id')->nullable()->constrained('products')->onDelete('set null');
         });
     }
 
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('products_sales');
+        Schema::dropIfExists('variants');
     }
 };

@@ -205,3 +205,22 @@ có 1 bản trung gian để lưu mối quan hệ nhiều nhiều giữa bảng 
 đó là bảng products_sales, trong mỗi row của file excel có cột sap_item_code là mã sản phẩm, và cột order_number mã salse để biết nên ghi mối quan hệ
 'product_id' => id của bảng product,
 'sales_id' => id của bảng sales
+
+
+php artisan make:migration create_customer_account_table
+php artisan make:migration create_products_table
+2025_08_04_151500_create_products_table
+
+
+đặt vấn đề như sau:
+trong mysql laravel với chức năng import dữ liệu từ file excel.
+tôi có cấu trúc dữ liệu như sau 
+bảng products có 2 trường là id và product_name . product_name là unique.
+bảng variants có 4 trường là id, product_id và variant_name, code. code là unique.
+product_id của bảng variants là khóa ngoại tham chiếu đến bảng products.
+
+bây giờ file excel của tôi có cấu trúc như sau:
+có 4 cột: product_name, variant_name, code.
+bây giờ tôi muốn chia ra và import vào DB, nhưng làm sao khi import vào bảng products thì lấy được id và import tiếp vào bảng variants với product_id là id của bảng products.
+vì chỉ khi nhìn trong file excel đối chiếu từng dòng mới biết code nào thuộc về product nào.
+và vấn đề là khi import từ file excel thì có khoảng 20k dòng dữ liệu, không thể khởi tạo kết nối DB từng dòng, mà làm hàng loạt. key nào trùng thì bỏ qua

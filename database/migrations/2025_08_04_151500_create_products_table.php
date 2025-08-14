@@ -13,8 +13,7 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->string('sap_item_code')->unique();
-            $table->text('item_short_description')->nullable();
+            $table->string('name')->unique();
             $table->timestamps();
         });
     }

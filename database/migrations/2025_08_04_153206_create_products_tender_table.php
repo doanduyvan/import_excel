@@ -13,13 +13,10 @@ return new class extends Migration
     {
         Schema::create('products_tender', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('tender_id');
+            $table->foreignId('variant_id')->constrained('variants')->onDelete('cascade');
+            $table->foreignId('tender_id')->constrained('tender')->onDelete('cascade');
 
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('tender_id')->references('id')->on('tender')->onDelete('cascade');
-
-            $table->unique(['product_id', 'tender_id']);
+            $table->unique(['variant_id', 'tender_id']);
         });
     }
 

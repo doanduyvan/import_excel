@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('role')->default('staff'); // 1: admin, 2: staff
             $table->boolean('is_active')->default(true);
             $table->string('fullname')->nullable();
+            $table->string('email')->nullable();
             $table->timestamps();
         });
     }

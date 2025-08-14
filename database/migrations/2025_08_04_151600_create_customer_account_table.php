@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('products_sales', function (Blueprint $table) {
+        Schema::create('customer_account', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('variant_id')->constrained('variants')->onDelete('cascade');
-            $table->foreignId('sale_id')->constrained('sales')->onDelete('cascade');
-
-            $table->unique(['variant_id', 'sale_id']);
+            $table->string('brick_codewo')->unique();
+            $table->string('customer_account_name')->nullable();
+            $table->timestamps();
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
         });
     }
 
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('products_sales');
+        Schema::dropIfExists('customer_account');
     }
 };
