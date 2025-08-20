@@ -26,8 +26,7 @@ return new class extends Migration
             $table->decimal('tender_price', 15, 2)->nullable();
             $table->string('sap_item_code')->nullable();
             $table->text('item_short_description')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');
+            $table->foreignId('customer_id')->nullable()->constrained('customers')->onDelete('set null');
 
             $table->timestamps();
         });

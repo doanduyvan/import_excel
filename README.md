@@ -224,3 +224,87 @@ có 4 cột: product_name, variant_name, code.
 bây giờ tôi muốn chia ra và import vào DB, nhưng làm sao khi import vào bảng products thì lấy được id và import tiếp vào bảng variants với product_id là id của bảng products.
 vì chỉ khi nhìn trong file excel đối chiếu từng dòng mới biết code nào thuộc về product nào.
 và vấn đề là khi import từ file excel thì có khoảng 20k dòng dữ liệu, không thể khởi tạo kết nối DB từng dòng, mà làm hàng loạt. key nào trùng thì bỏ qua
+
+
+  0 => 
+  array (
+    'fullname' => 'TRAN THANH LINH',
+    'brick_codewo' => 'VN03450720',
+    'customer_account_name' => 'BV NHI DONG 2',
+    'customer_code' => 30190503,
+  ),
+  1 => 
+  array (
+    'fullname' => 'TRAN THANH LINH',
+    'brick_codewo' => 'VN03450720',
+    'customer_account_name' => 'BV NHI DONG 2',
+    'customer_code' => 30190503,
+  ),
+  2 => 
+  array (
+    'fullname' => 'HUYNH DINH BO CONG ANH',
+    'brick_codewo' => 'VN034517770',
+    'customer_account_name' => 'PK DK JIO HEALTH SMART CLINIC',
+    'customer_code' => 30389668,
+  ),
+  3 => 
+  array (
+    'fullname' => 'TRAN THI XUAN DAO',
+    'brick_codewo' => 'VN034518325',
+    'customer_account_name' => 'BV DK TAM ANH TP HCM',
+    'customer_code' => 30192832,
+  ),
+  4 => 
+  array (
+    'fullname' => 'LUU NHUAN AI',
+    'brick_codewo' => 'VN034517398',
+    'customer_account_name' => 'YT CHAN VAN 315',
+    'customer_code' => 30426606,
+  ),
+
+mảng trên được đọc từ file excel,
+dataBatch chính là mảng trên
+
+        $path = storage_path('app/seeder/accounts.xlsx');
+        $mapping = [
+            'B' => 'account_name',
+            'D' => 'brick_codewo',
+            'E' => 'customer_account_name',
+            'F' => 'customer_code',
+        ];
+        $readexcel = new ReadExcel();
+        $res = $readexcel->readxlsx($path, $mapping, 2, function ($dataBatch) {
+            // \Log::info($dataBatch);
+            // \Log::info('end batch');
+            $datainsert = [];
+            foreach ($dataBatch as $row) {
+                $key = trim(Str::slug($row['account_name'], ''));
+                $datainsert[$key] = [
+                    'account_name' => $key,
+                    'fullname' => $row['account_name']
+                ];
+            }
+            // Chèn vào DB
+            DB::table('users')->insertOrIgnore(array_values($datainsert));
+            // lấy lại ID của các bản ghi đã chèn
+            $insertedIds = DB::table('users')->whereIn('account_name', array_keys($datainsert))
+                ->pluck('id', 'account_name')
+                ->toArray();
+
+            // chèn DB bảng customer_account
+            $datainsert = [];
+            foreach ($dataBatch as $row) {
+                $key = trim($row['brick_codewo']);
+                $foreignKey = trim(Str::slug($row['account_name'], ''));
+                $datainsert[$key] = [
+                    'brick_codewo' => $key,
+                    'customer_account_name' => $row['customer_account_name'],
+                    'user_id' => $insertedIds[$foreignKey] ?? null,
+                ];
+            }
+
+            DB::table('customer_account')->insertOrIgnore(array_values($datainsert));
+
+            2 bảng đã insert thành công,
+            nhưng có 1 bảng customers liên kết khóa ngoại đến bảng customer_account, và bảng customer đã có dữ liệu trước nhưng bảng customer chỉ lưu customer_code và khóa ngoại hiện đang null
+            giải pháp nào để tìm ra đúng id và liên kết

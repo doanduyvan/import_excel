@@ -44,8 +44,8 @@ class Tender extends Model
         return $this->belongsTo(Customers::class, 'customer_id', 'id');
     }
 
-    public function products()
+    public function variants()
     {
-        return $this->belongsToMany(Products::class, 'products_tender', 'tender_id', 'product_id', 'id', 'id');
+        return $this->belongsToMany(Variants::class, 'variants_tender', 'tender_id', 'variant_id', 'id', 'id');
     }
 }

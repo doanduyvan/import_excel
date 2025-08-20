@@ -12,22 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sales', function (Blueprint $table) {
-                $table->id();
+            $table->id();
 
             $table->string('order_number')->unique();
             $table->string('invoice_number')->nullable();
             $table->string('contract_number')->nullable();
             $table->date('expiry_date')->nullable();
-
             $table->decimal('selling_price', 15, 2)->nullable();
             $table->float('commercial_quantity')->nullable();
-
             $table->date('invoice_confirmed_date')->nullable();
             $table->decimal('net_sales_value', 15, 2)->nullable();
             $table->date('accounts_receivable_date')->nullable();
-
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');
+            $table->foreignId('customer_id')->nullable()->constrained('customers')->onDelete('set null');
 
             $table->timestamps();
         });

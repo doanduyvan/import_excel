@@ -36,8 +36,8 @@ class Sales extends Model
         return $this->belongsTo(Customers::class, 'customer_id', 'id');
     }
 
-    public function products()
+    public function variants()
     {
-        return $this->belongsToMany(Products::class, 'products_sales', 'sale_id', 'product_id', 'id', 'id');
+        return $this->belongsToMany(Variants::class, 'variants_sales', 'sale_id', 'variant_id', 'id', 'id');
     }
 }

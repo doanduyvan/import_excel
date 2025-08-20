@@ -599,7 +599,7 @@ class ImportExcel
         // dữ liệu data Batch đã được chunk, chỉ nhận vào tối đa 1k dòng, và dữ liệu đã định dạng theo maping, 'tên cột' => giá trị
 
         $this->insertCustomer($dataBatch);
-        $this->insertProduct($dataBatch);
+        // $this->insertProduct($dataBatch);
 
         if ($type === 'tender') {
 
@@ -735,7 +735,7 @@ class ImportExcel
             }
         }
 
-        // sau khi insert salse thì cần insert vào bảng sales_products
+        // sau khi insert salse thì cần insert vào bảng variants_sales
         // B1: Lấy danh sách order_number và sap_item_code từ batch
         $orderNumbers = [];
         $sapItemCodes = [];
@@ -751,7 +751,7 @@ class ImportExcel
         $sapItemCodes = array_values(array_unique($sapItemCodes));
         // B2: Lấy ID từ DB
         $saleIds = DB::table('sales')->whereIn('order_number', $orderNumbers)->pluck('id', 'order_number')->toArray();
-        $productIds = DB::table('products')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
+        $productIds = DB::table('variants')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
 
         // B3: Ghép bảng trung gian
         $productSales = [];
@@ -770,7 +770,7 @@ class ImportExcel
             if ($saleId && $productId) {
                 $productSales[] = [
                     'sale_id' => $saleId,
-                    'product_id' => $productId,
+                    'variant_id' => $productId,
                 ];
             }
         }
@@ -780,7 +780,7 @@ class ImportExcel
             try {
                 DB::beginTransaction();
                 foreach (array_chunk($productSales, 1000) as $chunk) {
-                    DB::table('products_sales')->insertOrIgnore($chunk);
+                    DB::table('variants_sales')->insertOrIgnore($chunk);
                 }
                 DB::commit();
             } catch (\Exception $e) {
@@ -846,7 +846,7 @@ class ImportExcel
         if (!$this->isTruncatedTender) {
             // nếu có truncate thì xóa hết dữ liệu cũ
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-            DB::table('products_tender')->truncate();
+            DB::table('variants_tender')->truncate();
             DB::table('tender')->truncate();
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
             $this->isTruncatedTender = true; // đánh dấu đã xóa dữ liệu cũ
@@ -870,7 +870,7 @@ class ImportExcel
         // bỏ bảng trung gian.
         return;
 
-        // sau khi insert tender thì cần insert vào bảng tender_products
+        // sau khi insert tender thì cần insert vào bảng variants_tender
         // B1: Lấy danh sách hash_key và sap_item_code từ batch
         $hash_key_tender = [];
         $sapItemCodes = [];
@@ -891,7 +891,7 @@ class ImportExcel
 
         // B2: Lấy ID từ DB
         $tenderIds = DB::table('tender')->whereIn('hash_key', $hash_key_tender)->pluck('id', 'hash_key')->toArray();
-        $productIds = DB::table('products')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
+        $productIds = DB::table('variants')->whereIn('sap_item_code', $sapItemCodes)->pluck('id', 'sap_item_code')->toArray();
 
         // B3: Ghép bảng trung gian
         $productTenders = [];
@@ -915,7 +915,7 @@ class ImportExcel
             if ($tender_id && $productId) {
                 $productTenders[] = [
                     'tender_id' => $tender_id,
-                    'product_id' => $productId,
+                    'variant_id' => $productId,
                 ];
             }
         }
@@ -924,7 +924,7 @@ class ImportExcel
             try {
                 DB::beginTransaction();
                 foreach (array_chunk($productTenders, 1000) as $chunk) {
-                    DB::table('products_tender')->insertOrIgnore($chunk);
+                    DB::table('variants_tender')->insertOrIgnore($chunk);
                 }
                 DB::commit();
             } catch (\Exception $e) {

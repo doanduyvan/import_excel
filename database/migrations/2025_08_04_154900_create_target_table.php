@@ -12,20 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('target', function (Blueprint $table) {
-                   $table->id();
-
+            $table->id();
             $table->integer('quantity_target')->nullable();
-
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('user_id');
-
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-
+            $table->text('title')->nullable();
+            $table->foreignId('variants_id')->constrained('variants')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
 
             // Tránh trùng target giữa product-user
-            $table->unique(['product_id', 'user_id']);
+            $table->unique(['variants_id', 'user_id']);
         });
     }
 

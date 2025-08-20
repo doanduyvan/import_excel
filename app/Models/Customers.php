@@ -16,7 +16,7 @@ class Customers extends Model
         'customer_code',
         'customer_name',
         'area',
-        'user_id'
+        'customer_account_id '
     ];
 
     public function tender()
@@ -29,8 +29,8 @@ class Customers extends Model
         return $this->hasMany(Sales::class, 'customer_id', 'id');
     }
 
-    public function users()
+    public function customer_account()
     {
-        return $this->belongsTo(User::class, 'user_id', 'id');
+        return $this->belongsTo(Customer_account::class, 'customer_account_id', 'id');
     }
 }

@@ -24,8 +24,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'account_code',
         'is_active',
+        'fullname'
     ];
 
     protected $hidden = [
@@ -36,9 +36,9 @@ class User extends Authenticatable
         'is_active' => 'boolean',
     ];
 
-    public function customers()
+    public function customer_account()
     {
-        return $this->hasMany(Customers::class, 'user_id', 'id');
+        return $this->hasMany(Customer_account::class, 'user_id', 'id');
     }
 
     public function target()

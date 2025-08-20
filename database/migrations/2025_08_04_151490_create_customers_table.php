@@ -14,9 +14,8 @@ return new class extends Migration
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->string('customer_code')->unique();
-            $table->text('customer_name');
+            $table->text('customer_name')->nullable();
             $table->text('area')->nullable();
-            $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamps();
             $table->foreignId('customer_account_id')->nullable()->constrained('customer_account')->onDelete('set null');
         });
