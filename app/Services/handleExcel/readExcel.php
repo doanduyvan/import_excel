@@ -2,6 +2,8 @@
 
 namespace App\Services\HandleExcel;
 
+use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
+
 class ReadExcel
 {
     public $errs = []; // mảng lưu các lỗi trong quá trình xử lý
@@ -100,6 +102,42 @@ class ReadExcel
         } catch (\Throwable $e) {
             $this->errs[] = 'Lỗi import Excel (xlsx-stream): ' . $e->getMessage();
             return self::returnResult(500, false, true, '');
+        }
+    }
+
+    public function getCellValueXlsx(string $path,  string $columnLetter = 'B', int $rowNumber = 2, int $sheetIndex = 0)
+    {
+        try {
+            if (!file_exists($path)) {
+                throw new \Exception("File not found: $path");
+            }
+
+            $columnIdx = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($columnLetter) - 1; // 0-based
+            $reader = ReaderEntityFactory::createXLSXReader();
+            $reader->open($path);
+
+            $currentSheetIndex = 0;
+            foreach ($reader->getSheetIterator() as $sheet) {
+                if ($currentSheetIndex === $sheetIndex) {
+                    $currentRow = 0;
+                    foreach ($sheet->getRowIterator() as $row) {
+                        $currentRow++;
+                        if ($currentRow === $rowNumber) {
+                            $cells = $row->getCells();
+                            $value = isset($cells[$columnIdx]) ? $cells[$columnIdx]->getValue() : null;
+                            $reader->close();
+                            return $value; // Trả về luôn
+                        }
+                    }
+                    break;
+                }
+                $currentSheetIndex++;
+            }
+            $reader->close();
+            return null; // Không tìm thấy
+        } catch (\Throwable $e) {
+            $this->errs[] = 'Lỗi đọc ô Excel: ' . $e->getMessage();
+            return null;
         }
     }
 

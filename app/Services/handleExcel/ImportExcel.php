@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Carbon\Carbon;
+use App\Services\HandleExcel\ReadExcel;
 
 
 class ImportExcel
@@ -108,25 +109,23 @@ class ImportExcel
         ini_set('max_execution_time', 0); // không giới hạn thời gian
 
         // Lấy email trong 5 ngày gần đây, trả về các email có file Zip đúng cấu trúc
-        if (false) {
-            $emails = $this->receiveMail(5);
-            if (!$emails['is_next']) {
-                echo ($emails['message']);
-                return;
+        $this->cleanFolder(); // xóa thư mục tạm trước khi bắt đầu
+        $emails = $this->receiveMail(5);
+        if (!$emails['is_next']) {
+            return;
+        }
+        // giải nén và lấy path excel
+        foreach ($emails['data'] as $key => $email) {
+            $handlExtractZip = $this->handleFileZip($email['zips']);
+            if (!$handlExtractZip['is_next']) {
+                // lỗi giải nén của từng mail sẽ sử lí ở đây
+                // echo $handlExtractZip['message'];
+                continue;
             }
-            // giải nén và lấy path excel
-            foreach ($emails['data'] as $key => $email) {
-                $handlExtractZip = $this->handleFileZip($email['zips']);
-                if (!$handlExtractZip['is_next']) {
-                    // lỗi giải nén của từng mail sẽ sử lí ở đây
-                    // echo $handlExtractZip['message'];
-                    continue;
-                }
-                $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
-            }
+            $emails['data'][$key]['pathExcel'] = $handlExtractZip['data'];
         }
         // sử lí đọc file excel và lưu vào db
-        $emails = $this->FakeEmails(); // tạm thời dùng dữ liệu giả để test
+        // $emails = $this->FakeEmails(); // tạm thời dùng dữ liệu giả để test
 
         foreach ($emails['data'] as $key => $email) {
             $type = $email['type'];
@@ -155,7 +154,6 @@ class ImportExcel
     {
 
         $fmt = $this->detectExcelFormat($path);
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return match ($fmt) {
             'xlsx_zip' => $this->importLargeExcel_xlsx($path, $type),
@@ -181,6 +179,11 @@ class ImportExcel
         int $startRow = 7,
         int $sheetIndex = 0
     ): array {
+
+        // $readerexcel = new ReadExcel();
+        // $result = $readerexcel->getCellValueXlsx($path, 'B', 4);
+        // Log::info($result);
+        // return [];
         // Lấy mapping theo type (key là cột chữ: "A" => "field")
         $mapping = $this->excel_mapping_db($type);
 
@@ -967,10 +970,11 @@ class ImportExcel
 
             // Tính ngày bắt đầu
             $sinceDate = now()->subDays($days)->format('d-M-Y'); // IMAP yêu cầu định dạng: 06-Aug-2025
-            $searchCriteria = 'SINCE "' . $sinceDate . '"';
+            $searchCriteria = 'UNSEEN SINCE "' . $sinceDate . '"';
 
             // Lấy email theo ngày
             $emails = imap_search($inbox, $searchCriteria);
+
 
             if (!$emails) {
                 imap_close($inbox);
@@ -990,7 +994,8 @@ class ImportExcel
                 $subject = $overview->subject ?? '';
                 $subjectLower = strtolower($subject);
                 // $body = imap_fetchbody($inbox, $email_number, 1, FT_PEEK);
-
+                // cách chuyển đổi thành utf-8 an toàn
+                $subjectLower = $this->decodeMimeStr($subjectLower);
                 // kiểm tra tiêu đề email có chứa từ khóa cần tìm
                 $type = null;
                 foreach ($WordCheckMail as $key => $keyword) {
@@ -1048,7 +1053,7 @@ class ImportExcel
                             }
                             $storedPath = storage_path($pathZip . '/' . $filename); // lấy đường dẫn lưu file zip
                             if (file_exists($storedPath)) {
-                                unlink($storedPath); // xóa file cũ nếu đã tồn tại
+                                // unlink($storedPath); // xóa file cũ nếu đã tồn tại
                             }
                             file_put_contents($storedPath, $decoded); // lưu nội dung file zip vào đường dẫn đã chỉ định
 
@@ -1073,6 +1078,11 @@ class ImportExcel
                         'zips' => $zipFiles[0]
                     ];
                 }
+            }
+
+            // đánh dấu đã đọc các email có trong emailsResult
+            foreach ($emailsResult as $email) {
+                imap_setflag_full($inbox, $email['email_number'], '\\Seen');
             }
 
             // Nếu không có email nào phù hợp, trả về thông báo
@@ -1141,7 +1151,7 @@ class ImportExcel
             return $this->returnResult(500, false, true, $err->getMessage());
         } finally {
             if (file_exists($zipFiles['path'])) {
-                unlink($zipFiles['path']);
+                // unlink($zipFiles['path']);
             }
         }
     }
@@ -1300,5 +1310,20 @@ class ImportExcel
 
         $this->errs[] = "Lỗi định dạng ngày: $value";
         return null;
+    }
+
+    function decodeMimeStr($string, $charset = 'UTF-8')
+    {
+        $elements = imap_mime_header_decode($string);
+        $result = '';
+        foreach ($elements as $element) {
+            $fromCharset = strtoupper($element->charset);
+            if ($fromCharset != 'DEFAULT') {
+                $result .= iconv($fromCharset, $charset, $element->text);
+            } else {
+                $result .= $element->text;
+            }
+        }
+        return $result;
     }
 }

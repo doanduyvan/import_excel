@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SettingsController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -14,9 +16,15 @@ use App\Http\Controllers\DashboardController;
 */
 
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
 
 
-Route::get('/info', function(){
-$info = phpinfo();
-return $info;
+Route::get('/info', function () {
+    $info = phpinfo();
+    return $info;
+});
+
+
+Route::prefix('ajax')->group(function () {
+    Route::get('checkmail', [SettingsController::class, 'checkmail']);
 });

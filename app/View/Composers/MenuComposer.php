@@ -32,6 +32,11 @@ class MenuComposer
                 'name' => 'Territory Account',
                 'url' => '',
                 'roles' => [1],
+            ],
+            [
+                'name' => 'Settings',
+                'url' => route('settings'),
+                'roles' => [1],
             ]
 
         ];

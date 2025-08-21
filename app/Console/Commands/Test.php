@@ -30,9 +30,10 @@ class Test extends Command
     public function handle()
     {
         //
-        $test = new ImportAccounts();
-        // $test = new ImportProduct();
+        $test1 = new ImportAccounts();
+        $test2 = new ImportProduct();
 
-        $test->handle();
+        $test1->handle();
+        $test2->handle();
     }
 }
