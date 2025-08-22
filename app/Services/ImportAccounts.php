@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Services\HandleExcel\ReadExcel;
+use App\Services\handleExcel\ReadExcel;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
