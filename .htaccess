@@ -1,6 +1,11 @@
 RewriteEngine On
 
-# Nếu truy cập tới file hoặc thư mục vật lý (file tĩnh), cho phép truy cập thẳng
+# Rewrite các file tĩnh css/js/img... về public/
+RewriteCond %{REQUEST_URI} ^/(css|js|images|img|fonts)/ [NC]
+RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f
+RewriteRule ^(css|js|images|img|fonts)/(.*)$ public/$1/$2 [L]
+
+# Nếu truy cập trực tiếp file hoặc thư mục thật (kể cả vừa rewrite xong)
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
