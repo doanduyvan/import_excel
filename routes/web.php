@@ -31,7 +31,7 @@ Route::prefix('ajax')->group(function () {
 
 
 Route::get('/check-imap', function () {
-    $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
+    $hostname = '{mail.odinn.site:993/imap/ssl}INBOX';
     $username = env("MAIL_USERNAME");
     $password = env('MAIL_PASSWORD');
     $inbox = @imap_open($hostname, $username, $password);
