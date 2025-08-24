@@ -13,5 +13,8 @@ RewriteRule ^ - [L]
 # Chặn truy cập file nhạy cảm ở root
 RewriteRule ^(\.env|composer\.(json|lock)|\.git|vendor|node_modules) - [F,L]
 
+# Nếu truy cập vào / (trang chủ), chuyển vào public/index.php
+RewriteRule ^$ public/index.php [L]
+
 # Tất cả các request còn lại chuyển vào public/index.php
 RewriteRule ^ public/index.php [L]
