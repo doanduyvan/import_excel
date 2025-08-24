@@ -1,11 +1,12 @@
 RewriteEngine On
 
-# Nếu truy cập trực tiếp tài nguyên tĩnh nằm trong public/
-RewriteCond %{REQUEST_URI} ^/(public/)?(index\.php|css/|js/|images?/|img/|fonts?/|favicon\.ico|robots\.txt) [NC]
+# Nếu truy cập tới file hoặc thư mục vật lý (file tĩnh), cho phép truy cập thẳng
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Cấm truy cập trực tiếp file nhạy cảm ở root
+# Chặn truy cập file nhạy cảm ở root
 RewriteRule ^(\.env|composer\.(json|lock)|\.git|vendor|node_modules) - [F,L]
 
-# TẤT CẢ REQUEST còn lại đều chuyển vào public/index.php
+# Tất cả các request còn lại chuyển vào public/index.php
 RewriteRule ^ public/index.php [L]
