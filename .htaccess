@@ -1,16 +1,16 @@
 RewriteEngine On
 
-# Cho phép truy cập thẳng vào các file/folder tĩnh phổ biến
-RewriteCond %{REQUEST_URI} ^/(index\.php|storage/|css/|js/|images?/|img/|fonts?/|favicon\.ico|robots\.txt) [NC]
+# Cho phép truy cập trực tiếp các file tĩnh nằm trong public/
+RewriteCond %{REQUEST_URI} ^/(public/)?(index\.php|css/|js/|images?/|img/|fonts?/|favicon\.ico|robots\.txt) [NC]
 RewriteRule ^ - [L]
 
-# Cấm truy cập trực tiếp các file nhạy cảm
+# Cấm truy cập trực tiếp file nhạy cảm ở root
 RewriteRule ^(\.env|composer\.(json|lock)|\.git|vendor|node_modules) - [F,L]
 
-# Nếu file hoặc thư mục vật lý tồn tại thì cho phép truy cập
+# Nếu file hoặc thư mục thực tồn tại ở public/, cho phép truy cập
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Chuyển hướng tất cả request còn lại về index.php cho Laravel xử lý
-RewriteRule ^ index.php [L]
+# Chuyển hướng tất cả request còn lại vào public/index.php
+RewriteRule ^(.*)$ public/index.php [L]
