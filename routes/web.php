@@ -28,3 +28,17 @@ Route::get('/info', function () {
 Route::prefix('ajax')->group(function () {
     Route::get('checkmail', [SettingsController::class, 'checkmail']);
 });
+
+
+Route::get('/check-imap', function () {
+    $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
+    $username = env("MAIL_USERNAME");
+    $password = env('MAIL_PASSWORD');
+    $inbox = @imap_open($hostname, $username, $password);
+    if (!$inbox) {
+        dd(imap_last_error());
+    } else {
+        echo "Connected successfully to IMAP server.";
+        imap_close($inbox);
+    }
+});
