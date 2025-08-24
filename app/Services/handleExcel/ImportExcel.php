@@ -631,6 +631,7 @@ class ImportExcel
                 'customer_name' => $item['customer_name'] ?? '',
                 'area' => $item['area'] ?? '',
                 'created_at' => $now,
+                'customer_account_id' => null,
             ];
         }
 
@@ -640,6 +641,8 @@ class ImportExcel
                 foreach (array_chunk($customers, 1000) as $chunk) {
                     DB::table('customers')->insertOrIgnore($chunk);
                 }
+                $accountService = new \App\Services\ImportAccounts();
+                $accountService->handle();
                 DB::commit();
             } catch (\Exception $e) {
                 $this->errs[] = "Lỗi khi insert customers: " . $e->getMessage();

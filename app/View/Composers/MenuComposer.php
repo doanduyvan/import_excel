@@ -25,7 +25,7 @@ class MenuComposer
             ],
             [
                 'name' => 'Detail by invoice',
-                'url' => '',
+                'url' => route('detailbyinvoice'),
                 'roles' => [1, 2],
             ],
             [
