@@ -945,9 +945,13 @@ class ImportExcel
             'sales' => 'DailyNetSalesData_NW',
             'tender' => 'TenderQuotaStatus',
         ];
-        $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
-        $username = env("MAIL_USERNAME");
-        $password = env('MAIL_PASSWORD');
+        // $hostname = '{imap.gmail.com:993/imap/ssl}INBOX';
+        // $username = env("MAIL_USERNAME");
+        // $password = env('MAIL_PASSWORD');
+        $hostname = '{mail.odinn.site:143/imap/notls}INBOX';
+        $username = "mail@odinn.site";
+        $password = "o^yer9]KsD61V@oB";
+
         $pathZip = 'app/tmp_zips';
 
         $hasFolderZip = storage_path($pathZip);
