@@ -1316,6 +1316,21 @@ class ImportExcel
         return null;
     }
 
+    // function decodeMimeStr($string, $charset = 'UTF-8')
+    // {
+    //     $elements = imap_mime_header_decode($string);
+    //     $result = '';
+    //     foreach ($elements as $element) {
+    //         $fromCharset = strtoupper($element->charset);
+    //         if ($fromCharset != 'DEFAULT') {
+    //             $result .= iconv($fromCharset, $charset, $element->text);
+    //         } else {
+    //             $result .= $element->text;
+    //         }
+    //     }
+    //     return $result;
+    // }
+
     function decodeMimeStr($string, $charset = 'UTF-8')
     {
         $elements = imap_mime_header_decode($string);
@@ -1323,7 +1338,13 @@ class ImportExcel
         foreach ($elements as $element) {
             $fromCharset = strtoupper($element->charset);
             if ($fromCharset != 'DEFAULT') {
-                $result .= iconv($fromCharset, $charset, $element->text);
+                // Dùng //IGNORE để tránh lỗi và giữ lại text hợp lệ
+                $text = @iconv($fromCharset, $charset . '//IGNORE', $element->text);
+                if ($text === false) {
+                    $result .= $element->text; // Nếu vẫn lỗi thì giữ nguyên
+                } else {
+                    $result .= $text;
+                }
             } else {
                 $result .= $element->text;
             }
