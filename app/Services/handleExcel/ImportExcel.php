@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Carbon\Carbon;
-use App\Services\HandleExcel\ReadExcel;
+use App\Services\handleExcel\ReadExcel;
 
 
 class ImportExcel

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\HandleExcel;
+namespace App\Services\handleExcel;
 
 use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
 
