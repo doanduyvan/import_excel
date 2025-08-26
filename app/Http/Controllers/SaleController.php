@@ -55,7 +55,9 @@ class SaleController extends Controller
         INNER JOIN customers as cu on cu.customer_account_id = ca.id
         INNER JOIN sales as sa on sa.customer_id = cu.id
         INNER JOIN variants_sales as vs on vs.sale_id = sa.id 
-        INNER JOIN variants as va on va.id = vs.variant_id";
+        INNER JOIN variants as va on va.id = vs.variant_id
+        ORDER BY sa.invoice_confirmed_date DESC";
+        
         $all = $results = DB::select($sql);
         return response()->json($all, 200);
     }
