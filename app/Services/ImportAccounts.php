@@ -13,8 +13,6 @@ class ImportAccounts
 
     public function handle()
     {
-        //
-        \Log::info('ImportAccounts service started');
         $this->import();
     }
 

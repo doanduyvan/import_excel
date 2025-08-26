@@ -28,6 +28,7 @@ Route::get('/info', function () {
 
 Route::prefix('ajax')->group(function () {
     Route::get('checkmail', [SettingsController::class, 'checkmail']);
+    Route::post('importaccount', [SettingsController::class, 'importAccount']);
     Route::get('detailbyinvoice', [SaleController::class, 'Detailbyinvoice']);
 });
 

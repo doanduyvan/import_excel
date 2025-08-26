@@ -25,6 +25,32 @@ class SettingsController extends Controller
         return response()->json($result, 200);
     }
 
+    public function importAccount(Request $request)
+    {
+        $file = $request->file('file');
+        if (!$file) {
+            return response()->json(['message' => 'No file uploaded'], 400);
+        }
+        // nếu có file thì lưu vào storage/app/seeder/accounts.xlsx
+        // kiểm tra rằng nó tồn tại chưa, nếu có rồi thì xóa đi rồi lưu file mới vào
+        $dir = storage_path('app/seeder');
+        if (!file_exists($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        $path = $dir . '/accounts.xlsx';
+        if (file_exists($path)) {
+            unlink($path);
+        }
+        $file->move($dir, 'accounts.xlsx');
+
+        $service = new \App\Services\ImportAccounts();
+        $service->import();
+
+        return response()->json(['message' => 'import thành công'], 200);
+    }
+
+
     /**
      * Show the form for creating a new resource.
      */
