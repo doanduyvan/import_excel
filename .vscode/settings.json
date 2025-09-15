@@ -4,37 +4,45 @@
         "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
         "editor.formatOnSave": true
     },
-    // Đường dẫn PHP trên máy
     "php.validate.executablePath": "C:/xampp/php/php.exe",
-    // Giới hạn file tối đa cho Intelephense
     "intelephense.files.maxSize": 1000000,
-    // Tắt gửi dữ liệu ẩn về nhà phát triển
     "intelephense.telemetry.enabled": false,
-    // Include thư mục vendor cho gợi ý Laravel
     "intelephense.environment.includePaths": [
         "vendor"
     ],
-    // Tự động import namespace
     "php.namespaceResolver.sortAlphabetically": true,
     "php.namespaceResolver.showMessageOnUpdate": false,
     "php.namespaceResolver.insertUseDeclaration": true,
     "php.namespaceResolver.enable": true,
-    // Format Laravel Blade khi lưu
-    "[blade]": {
-        "editor.defaultFormatter": "shufo.vscode-blade-formatter",
-        "editor.formatOnSave": true
-    },
-    // Cấu hình cho Blade Formatter
-    "bladeFormatter.format.enable": true,
-    "bladeFormatter.format.indentSize": 2,
-    "bladeFormatter.format.wrapAttributes": "auto",
-    // Gợi ý import path khi dùng Laravel
+
+    // Gợi ý import path cho Laravel PHP (API)
     "path-intellisense.autoSlashAfterDirectory": true,
     "path-intellisense.extensionOnImport": true,
-    // Một số tiện ích chung
+
+    // Một số tiện ích chung cho code
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
     },
-    "intelephense.diagnostics.undefinedMethods": false
+    "intelephense.diagnostics.undefinedMethods": false,
+
+    // Tối ưu cho ReactJS + Tailwind CSS
+    "tailwindCSS.emmetCompletions": true,
+    "editor.quickSuggestions": {
+        "strings": true
+    },
+    "editor.suggest.preview": true,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "css.validate": false,
+    "files.associations": {
+        "*.css": "tailwindcss"
+    },
+    "tailwindCSS.includeLanguages": {
+        "plaintext": "html",
+        "html": "html",
+        "javascript": "javascriptreact",
+        "javascriptreact": "javascriptreact",
+        "typescript": "typescriptreact",
+        "typescriptreact": "typescriptreact"
+    }
 }
